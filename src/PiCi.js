@@ -20,7 +20,25 @@ let nodeList = {},
     edgeList = {},//保存边引用
     edgeInfoList = {};//保存边信息
 
-function setGraph(graph, lineFlag,id) {
+function setEdge(line,souPos,tarPos){
+    //还有必要转换为sprite吗？=> 有，线虽然没有交互效果，但是有选中的效果=>这个效果好像不需要一定是sprite吧，事件触发不行吗？
+    //线先不转为sprite => 不转线失真啊。。
+    line = new Sprite(line.generateCanvasTexture());
+    // 谁小按谁算，反正变成sprite之后没有区分指向的必要了
+    if(souPos.x>tarPos.x){
+        line.x = tarPos.x;
+    }else{
+        line.x = souPos.x;
+    }
+    if(souPos.y>tarPos.y){
+        line.y = tarPos.y;
+    }else{
+        line.y = souPos.y;
+    }
+    return line;
+}
+
+function setNode(graph,id) {
     
     //Then use that texture to create a new Sprite, and set that sprite as interactive
     graph = new Sprite(graph.generateCanvasTexture());
@@ -63,17 +81,8 @@ function setGraph(graph, lineFlag,id) {
                 
                 line.moveTo(sourcePos.x, sourcePos.y);
                 line.lineTo(newPos.x, newPos.y);
-                //还有必要转换为sprite吗？=> 有，线虽然没有交互效果，但是有选中的效果
-                //line = new Sprite(line.generateCanvasTexture());
-                // move the sprite to its designated position
-                //问题在这，线生成的sprite只有长度信息，直接设置起点当角度为负时就缺终点了
-                // if(sourcePos.x>newPos.x||sourcePos.y>newPos.y){
-                //     line.x = newPos.x;
-                //     line.y = newPos.y;
-                // }else{
-                //     line.x = sourcePos.x;
-                //     line.y = sourcePos.y;    
-                // }
+
+                line = setEdge(line,sourcePos,newPos);
                 
                 edgeList[element] = line;//保存边引用，免得重复画线=>好像必须重复画，再转为精灵=>便于删除吧
 
@@ -85,7 +94,7 @@ function setGraph(graph, lineFlag,id) {
             }else if(edgeInfoList[element].source === id){
 
                 let oldLine = edgeList[element];//在线的引用保存对象里找到线
-                stage.removeChild(oldLine);//在删除线重新画
+                stage.removeChild(oldLine);//删除线重新画
                 let line = new Graphics();
                 line.lineStyle(4, 0xFFFFFF, 1);
 
@@ -95,16 +104,7 @@ function setGraph(graph, lineFlag,id) {
                 line.moveTo(newPos.x, newPos.y);
                 line.lineTo(targetPos.x, targetPos.y);
 
-                //还有必要转换为sprite吗？=> 有，线虽然没有交互效果，但是有选中的效果
-                //line = new Sprite(line.generateCanvasTexture());
-                // move the sprite to its designated position
-                // if(sourcePos.x>newPos.x||sourcePos.y>newPos.y){
-                //     line.x = newPos.x;
-                //     line.y = newPos.y;
-                // }else{
-                //     line.x = sourcePos.x;
-                //     line.y = sourcePos.y;    
-                // }
+                line = setEdge(line,newPos,targetPos);
 
                 edgeList[element] = line;//保存边引用，免得重复画线=>好像必须重复画，再转为精灵=>便于删除吧
 
@@ -117,22 +117,19 @@ function setGraph(graph, lineFlag,id) {
         };
     }
 
-    if (!lineFlag) {//node can move only
-        graph.interactive = true;
-        // this button mode will mean the hand cursor appears when you roll over the bunny with your mouse
-        graph.buttonMode = true;
-        //to ckeck
-        graph.anchor.set(0.5);
+    graph.interactive = true;
+    // this button mode will mean the hand cursor appears when you roll over the bunny with your mouse
+    graph.buttonMode = true;
+    //to ckeck
+    graph.anchor.set(0.5);
 
-        graph
-            .on('pointerdown', onDragStart)
-            .on('pointerup', onDragEnd)
-            .on('pointerupoutside', onDragEnd)
-            .on('pointermove', onDragMove);
-       
-    } else {//edge
-
-    }
+    graph
+        .on('pointerdown', onDragStart)
+        .on('pointerup', onDragEnd)
+        .on('pointerupoutside', onDragEnd)
+        .on('pointermove', onDragMove);
+    
+   
     return graph;
 }
 
@@ -173,21 +170,19 @@ function PiCi(opts) {
                 nodeList[data.id] = data;
                 let source = nodeList[data.source];
                 let target = nodeList[data.target];
+                console.log(source);
+                console.log(target);
                 let line = new Graphics();
                 line.lineStyle(4, 0xFFFFFF, 1);
                 line.moveTo(source.x, source.y);
-                line.lineTo(target.x, target.y);
+                line.lineTo(target.x, target.y);//要获取长度信息
 
-                //还有必要转换为sprite吗？=> 有，线虽然没有交互效果，但是有选中的效果=>这个效果好像不需要一定是sprite吧，事件触发不行吗？
-                //线先不转为sprite
-                // line = setGraph(line, true);
-                // // move the sprite to its designated position
-                // line.x = source.x;
-                // line.y = source.y;
-
+                line = setEdge(line,source,target);
+               
                 edgeList[data.id] = line;//保存边引用，免得重复画线=>好像必须重复画，再转为精灵=>便于删除吧
-
+    
                 stage.addChild(line);
+
             } else {
                 //add node to nodeList
                 nodeList[data.id] = data;
@@ -196,7 +191,7 @@ function PiCi(opts) {
                 circle.beginFill(0x66CCFF);
                 circle.drawCircle(0, 0, 32);
                 circle.endFill();
-                circle = setGraph(circle, false,data.id);
+                circle = setNode(circle,data.id);
 
                 // move the sprite to its designated position
                 circle.x = data.x;
