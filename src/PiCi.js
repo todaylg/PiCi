@@ -44,12 +44,13 @@ function setGraph(graph, lineFlag,id) {
             var newPosition = this.data.getLocalPosition(this.parent);
             this.x = newPosition.x;
             this.y = newPosition.y;
-            updateEdge(id,newPosition);
+            updateEdge(id,newPosition);//闭包的缘故，id能访问得到
             renderer.render(stage);
         }
     }
-    //Bug => 为啥负角度就崩了？？？
+    //Bug => 为啥负角度就崩了？？？ 好像是还需要判断谁大谁小，因为好像差值不能为负数
     let updateEdge = function(id,newPos){
+       
         for(let element in edgeInfoList) {
             if(edgeInfoList[element].target === id){
                 let oldLine = edgeList[element];//在线的引用保存对象里找到线
@@ -59,16 +60,21 @@ function setGraph(graph, lineFlag,id) {
                 //target位置变了，但是source位置没有变
                 let sourcePos = nodeList[edgeInfoList[element].source],//边的起点
                 targetPos = nodeList[edgeInfoList[element].target];//边的终点
-
+                
                 line.moveTo(sourcePos.x, sourcePos.y);
                 line.lineTo(newPos.x, newPos.y);
-
                 //还有必要转换为sprite吗？=> 有，线虽然没有交互效果，但是有选中的效果
-                line = setGraph(line, true);
+                //line = new Sprite(line.generateCanvasTexture());
                 // move the sprite to its designated position
-                line.x = sourcePos.x;
-                line.y = sourcePos.y;
-
+                //问题在这，线生成的sprite只有长度信息，直接设置起点当角度为负时就缺终点了
+                // if(sourcePos.x>newPos.x||sourcePos.y>newPos.y){
+                //     line.x = newPos.x;
+                //     line.y = newPos.y;
+                // }else{
+                //     line.x = sourcePos.x;
+                //     line.y = sourcePos.y;    
+                // }
+                
                 edgeList[element] = line;//保存边引用，免得重复画线=>好像必须重复画，再转为精灵=>便于删除吧
 
                 //保存修改了的target Node坐标
@@ -86,15 +92,19 @@ function setGraph(graph, lineFlag,id) {
                 //source位置变了，但是target位置没有变
                 let sourcePos = nodeList[edgeInfoList[element].source],
                 targetPos = nodeList[edgeInfoList[element].target];
-
                 line.moveTo(newPos.x, newPos.y);
                 line.lineTo(targetPos.x, targetPos.y);
 
                 //还有必要转换为sprite吗？=> 有，线虽然没有交互效果，但是有选中的效果
-                line = setGraph(line, true);
+                //line = new Sprite(line.generateCanvasTexture());
                 // move the sprite to its designated position
-                line.x = newPos.x;
-                line.y = newPos.y;
+                // if(sourcePos.x>newPos.x||sourcePos.y>newPos.y){
+                //     line.x = newPos.x;
+                //     line.y = newPos.y;
+                // }else{
+                //     line.x = sourcePos.x;
+                //     line.y = sourcePos.y;    
+                // }
 
                 edgeList[element] = line;//保存边引用，免得重复画线=>好像必须重复画，再转为精灵=>便于删除吧
 
