@@ -3,8 +3,8 @@ import PiCi from './PiCi.js';
 PiCi({
     container: document.getElementById('cy'),
     elements: [
-        { data: { id: 'a',x:342,y:42 } },
-        { data: { id: 'b',x:212,y:212 } },
+        { data: { id: 'a',x:642,y:442 } },
+        { data: { id: 'b',x:212,y:312 } },
         {
             data: {
                 id: 'ab',
