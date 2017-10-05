@@ -4,7 +4,7 @@ import * as PIXI from "pixi.js";
 
 //Aliases
 let Container = PIXI.Container,
-    autoDetectRenderer = PIXI.CanvasRenderer,//Fixed use Canvas force!!
+    CanvasRenderer = PIXI.CanvasRenderer,//Fixed!! use Canvas force!!
     loader = PIXI.loader,
     TextureCache = PIXI.utils.TextureCache,
     Texture = PIXI.Texture,
@@ -12,7 +12,10 @@ let Container = PIXI.Container,
     Graphics = PIXI.Graphics;
 
 let stage = new Container(),
-    renderer = new autoDetectRenderer(window.innerWidth, window.innerHeight, {
+    edgeContainer = new Container(),
+    nodeContainer = new Container(),//节点在边之上
+    dragContainer = new Container(),//拖拽的节点处于最高层级
+    renderer = new CanvasRenderer(window.innerWidth, window.innerHeight, {
         // antialias: true,//这抗锯齿一开整个世界都变了  => use Canvas no Webgl!!!
         // forceFXAA: true,
         // transparent: false,
@@ -37,6 +40,7 @@ function setNode(graph, id) {
         // the reason for this is because of multitouch
         // we want to track the movement of this particular touch
         this.data = event.data;
+        //this.displayGroup = dragLayer;
         this.dragging = true;
     }
 
@@ -44,6 +48,10 @@ function setNode(graph, id) {
         this.dragging = false;
         // set the interaction data to null
         this.data = null;
+        //归位
+        dragContainer.removeChild(this);
+        nodeContainer.addChild(this);
+        renderer.render(stage);
     }
 
     let onDragMove = function () {
@@ -51,14 +59,16 @@ function setNode(graph, id) {
             var newPosition = this.data.getLocalPosition(this.parent);
             this.x = newPosition.x;
             this.y = newPosition.y;
-            updateEdge(id, newPosition);//闭包的缘故，id能访问得到
+            updateEdge(id, newPosition);//闭包的缘故，id是能访问得到的
+            nodeContainer.removeChild(this);
+            dragContainer.addChild(this);
             renderer.render(stage);
         }
     }
 
     let drawNewEdge = function (element, targetFlag, newPos) {
         let oldLine = edgeList[element];//在线的引用保存对象里找到线
-        stage.removeChild(oldLine);//删除线重新画
+        edgeContainer.removeChild(oldLine);//删除线重新画
         let line = new Graphics();
         line.lineStyle(4, 0xFFFFFF, 1);
         //target位置变了，但是source位置没有变
@@ -80,7 +90,7 @@ function setNode(graph, id) {
             sourcePos.y = newPos.y;
         }
         edgeList[element] = line;//保存边引用
-        stage.addChild(line);
+        edgeContainer.addChild(line);
     }
 
     let updateEdge = function (id, newPos) {
@@ -106,7 +116,7 @@ function setNode(graph, id) {
 
     return graph;
 }
-
+let testOrder = true; 
 function PiCi(opts) {
     opts = Object.assign({}, opts);
 
@@ -148,17 +158,26 @@ function PiCi(opts) {
                 line.moveTo(source.x, source.y);
 
                 line.quadraticCurveTo((source.x + target.x) / 2, (source.y + target.y) / 2 + 100, target.x, target.y);
-
+                
+                //zOrder
+                //line.displayGroup = edgeLayer;
+                
                 edgeList[data.id] = line;//保存边引用
 
-                stage.addChild(line);
+                edgeContainer.addChild(line);
 
             } else {
                 //add node to nodeList
                 nodeList[data.id] = data;
                 //Draw node
                 let circle = new Graphics();
-                circle.beginFill(0x66CCFF);
+                testOrder = !testOrder;
+                if(testOrder){
+                    circle.beginFill(0x66CCFF);
+                }else{
+                    circle.beginFill(0x000000);
+                }
+                
                 circle.drawCircle(0, 0, 32);
                 circle.endFill();
                 circle = setNode(circle, data.id);
@@ -166,10 +185,17 @@ function PiCi(opts) {
                 // move the sprite to its designated position
                 circle.x = data.x;
                 circle.y = data.y;
-                stage.addChild(circle);
+
+                //zOrder
+                //circle.displayGroup = nodeLayer;
+
+                nodeContainer.addChild(circle);
             }
         }
     }
+    stage.addChild(edgeContainer);
+    stage.addChild(nodeContainer);
+    stage.addChild(dragContainer);
     //Render the stage
     renderer.render(stage);
 }
