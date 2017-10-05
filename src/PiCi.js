@@ -12,10 +12,16 @@ let Container = PIXI.Container,
     Graphics = PIXI.Graphics;
 
 let stage = new Container(),
-    renderer = autoDetectRenderer(window.innerWidth, window.innerHeight, { backgroundColor: 0x1099bb });//Todo=> parameter
+    renderer = autoDetectRenderer(window.innerWidth, window.innerHeight, { 
+        // antialias: true,//这抗锯齿一开整个世界都变了
+        // forceFXAA: true,
+        // transparent: false,
+        // resolution: 1,
+        backgroundColor: 0x1099bb 
+    });//Todo=> parameter
 document.body.appendChild(renderer.view);
 
-const SCALE_MAX = 4, SCALE_MIN = 0.1;//for scale limmit
+const SCALE_MAX = 24, SCALE_MIN = 0.1;//for scale limmit
 
 //先试试分开保存，便于搜索，先这样吧
 let nodeList = {},
@@ -43,7 +49,6 @@ function setEdge(line, souPos, tarPos) {
 }
 
 function setNode(graph, id) {
-
     //Then use that texture to create a new Sprite, and set that sprite as interactive
     graph = new Sprite(graph.generateCanvasTexture());
 
@@ -128,7 +133,6 @@ function setNode(graph, id) {
         .on('pointerupoutside', onDragEnd)
         .on('pointermove', onDragMove);
 
-
     return graph;
 }
 
@@ -166,7 +170,6 @@ function PiCi(opts) {
                 //add edge to edgeList
                 edgeInfoList[data.id] = data;
                 //Draw edge
-                nodeList[data.id] = data;
                 let source = nodeList[data.source];
                 let target = nodeList[data.target];
                 let line = new Graphics();
@@ -197,7 +200,7 @@ function PiCi(opts) {
                 circle.beginFill(0x66CCFF);
                 circle.drawCircle(0, 0, 32);
                 circle.endFill();
-                circle = setNode(circle, data.id);
+                //circle = setNode(circle, data.id);
 
                 // move the sprite to its designated position
                 circle.x = data.x;
@@ -211,7 +214,7 @@ function PiCi(opts) {
 }
 
 
-//Scale 
+// Scale/Zoom
 renderer.view.addEventListener('wheel', function (e) {
     if (e.deltaY < 0) {
         zooming(true, e.pageX, e.pageY);
@@ -242,6 +245,8 @@ function zooming(zoomFlag, x, y) {
         }
     }
     stage.scale.set(scale, scale);
+    //缩放后需要重绘整个画板，不然直接放大会导致失真
+    //renderer.clear();
     renderer.render(stage);
 }
 
