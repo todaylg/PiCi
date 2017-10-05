@@ -12,12 +12,12 @@ let Container = PIXI.Container,
     Graphics = PIXI.Graphics;
 
 let stage = new Container(),
-    renderer = new autoDetectRenderer(window.innerWidth, window.innerHeight, { 
+    renderer = new autoDetectRenderer(window.innerWidth, window.innerHeight, {
         // antialias: true,//这抗锯齿一开整个世界都变了  => use Canvas no Webgl!!!
         // forceFXAA: true,
         // transparent: false,
         // resolution: 1,
-        backgroundColor: 0x1099bb 
+        backgroundColor: 0x1099bb
     });//Todo=> parameter
 document.body.appendChild(renderer.view);
 
@@ -148,7 +148,7 @@ function PiCi(opts) {
                 line.moveTo(source.x, source.y);
 
                 line.quadraticCurveTo((source.x + target.x) / 2, (source.y + target.y) / 2 + 100, target.x, target.y);
-               
+
                 edgeList[data.id] = line;//保存边引用
 
                 stage.addChild(line);
@@ -196,17 +196,16 @@ function zooming(zoomFlag, x, y) {
         if (scale < SCALE_MAX) {
             scale += 0.1;
             //moving      
-            stage.position.set(-(point.x * (scale-1)), -(point.y * (scale-1)))
+            stage.position.set(-(point.x * (scale - 1)), -(point.y * (scale - 1)))
         }
     } else {
         if (scale > SCALE_MIN) {
             scale -= 0.1;
             //moving            
-            stage.position.set(-(point.x * (scale-1)), -(point.y * (scale-1)))
+            stage.position.set(-(point.x * (scale - 1)), -(point.y * (scale - 1)))
         }
     }
     stage.scale.set(scale, scale);
-    //缩放后需要重绘整个画板，不然直接放大会导致失真
     //renderer.clear();
     renderer.render(stage);
 }
