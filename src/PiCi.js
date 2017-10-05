@@ -4,7 +4,7 @@ import * as PIXI from "pixi.js";
 
 //Aliases
 let Container = PIXI.Container,
-    autoDetectRenderer = PIXI.autoDetectRenderer,
+    autoDetectRenderer = PIXI.CanvasRenderer,//Fixed use Canvas force!!
     loader = PIXI.loader,
     TextureCache = PIXI.utils.TextureCache,
     Texture = PIXI.Texture,
@@ -12,8 +12,8 @@ let Container = PIXI.Container,
     Graphics = PIXI.Graphics;
 
 let stage = new Container(),
-    renderer = autoDetectRenderer(window.innerWidth, window.innerHeight, { 
-        // antialias: true,//这抗锯齿一开整个世界都变了
+    renderer = new autoDetectRenderer(window.innerWidth, window.innerHeight, { 
+        // antialias: true,//这抗锯齿一开整个世界都变了  => use Canvas no Webgl!!!
         // forceFXAA: true,
         // transparent: false,
         // resolution: 1,
@@ -28,29 +28,9 @@ let nodeList = {},
     edgeList = {},//保存边引用
     edgeInfoList = {};//保存边信息
 
-function setEdge(line, souPos, tarPos) {
-    //还有必要转换为sprite吗？=> 有，线虽然没有交互效果，但是有选中的效果=>这个效果好像不需要一定是sprite吧，事件触发不行吗？
-    //线先不转为sprite => 不转线失真啊。。
-    line = new Sprite(line.generateCanvasTexture());
-    // 谁小按谁算，反正变成sprite之后没有区分指向的必要了
-    // 否则线的位置会莫名其妙乱掉
-    // 现在换成曲线之后又乱了
-    if (souPos.x > tarPos.x) {
-        line.x = tarPos.x;
-    } else {
-        line.x = souPos.x;
-    }
-    if (souPos.y > tarPos.y) {
-        line.y = tarPos.y;
-    } else {
-        line.y = souPos.y;
-    }
-    return line;
-}
-
 function setNode(graph, id) {
     //Then use that texture to create a new Sprite, and set that sprite as interactive
-    graph = new Sprite(graph.generateCanvasTexture());
+    //graph = new Sprite(graph.generateCanvasTexture());
 
     let onDragStart = function (event) {
         // store a reference to the data
@@ -88,11 +68,6 @@ function setNode(graph, id) {
             line.moveTo(sourcePos.x, sourcePos.y);
             //line.lineTo(newPos.x, newPos.y);
             line.quadraticCurveTo((sourcePos.x + newPos.x) / 2, (sourcePos.y + newPos.y) / 2 + 100, newPos.x, newPos.y);
-            line = setEdge(line, sourcePos, newPos);
-            // line = new Sprite(line.generateCanvasTexture());
-            // line.x = sourcePos.x;
-            // line.y = sourcePos.y;
-
             //保存修改了的target Node坐标
             targetPos.x = newPos.x;
             targetPos.y = newPos.y;
@@ -100,17 +75,14 @@ function setNode(graph, id) {
             line.moveTo(newPos.x, newPos.y);
             //line.lineTo(targetPos.x, targetPos.y);
             line.quadraticCurveTo((newPos.x + targetPos.x) / 2, (newPos.y + targetPos.y) / 2 + 100, targetPos.x, targetPos.y);
-            line = setEdge(line, newPos, targetPos);
-
             //保存修改了的source Node坐标
             sourcePos.x = newPos.x;
             sourcePos.y = newPos.y;
         }
-        edgeList[element] = line;//保存边引用，免得重复画线=>好像必须重复画，再转为精灵=>便于删除吧
+        edgeList[element] = line;//保存边引用
         stage.addChild(line);
     }
 
-    //Bug => 为啥负角度就崩了？？？ 好像是还需要判断谁大谁小，因为好像差值不能为负数
     let updateEdge = function (id, newPos) {
         for (let element in edgeInfoList) {
             if (edgeInfoList[element].target === id) {
@@ -125,7 +97,6 @@ function setNode(graph, id) {
     // this button mode will mean the hand cursor appears when you roll over the bunny with your mouse
     graph.buttonMode = true;
     //to ckeck
-    graph.anchor.set(0.5);
 
     graph
         .on('pointerdown', onDragStart)
@@ -177,18 +148,8 @@ function PiCi(opts) {
                 line.moveTo(source.x, source.y);
 
                 line.quadraticCurveTo((source.x + target.x) / 2, (source.y + target.y) / 2 + 100, target.x, target.y);
-                //line.lineTo(target.x, target.y);//要获取长度信息
-                line = setEdge(line, source, target);
-
-                //有点莫名其妙
-                // line = new Sprite(line.generateCanvasTexture());
-                // line.x = source.x;
-                // line.y = source.y;//居然不行🚫  ???? =>也是行的,但是因为区分source和target，所以转换为sprite后重新赋值坐标得谁小按谁算（sprite生成后按照形状放在左上角）
-                // console.log("Line:")
-                // console.log(line.x)
-                // console.log(line.y)
-
-                edgeList[data.id] = line;//保存边引用，免得重复画线=>好像必须重复画，再转为精灵=>便于删除吧
+               
+                edgeList[data.id] = line;//保存边引用
 
                 stage.addChild(line);
 
@@ -200,7 +161,7 @@ function PiCi(opts) {
                 circle.beginFill(0x66CCFF);
                 circle.drawCircle(0, 0, 32);
                 circle.endFill();
-                //circle = setNode(circle, data.id);
+                circle = setNode(circle, data.id);
 
                 // move the sprite to its designated position
                 circle.x = data.x;
