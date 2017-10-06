@@ -148,7 +148,7 @@ function setNode(graph, id) {
 
     let onDragMove = function () {
         if (this.dragging) {
-            var newPosition = this.data.getLocalPosition(this.parent);
+            let newPosition = this.data.getLocalPosition(this.parent);
             this.x = newPosition.x;
             this.y = newPosition.y;
             updateEdge(id, newPosition);//闭包的缘故，id是能访问得到的
@@ -173,8 +173,8 @@ function setNode(graph, id) {
         edgeContainer.removeChild(oldLine);//删除线重新画
 
         //Get position info
-        let sourcePos = nodeList[element.source],//起点（node坐标）
-            targetPos = nodeList[element.target];//终点（node坐标）
+        let sourcePos = targetFlag?nodeList[element.source]:newPos,//起点（node坐标）
+            targetPos = targetFlag?newPos:nodeList[element.target];//终点（node坐标）
 
         let newSourcePos, newTargetPos;
         //别着急画线啊，先画箭头和椭圆
@@ -197,12 +197,12 @@ function setNode(graph, id) {
         //Save position change
         if (targetFlag) {
             //保存修改了的target Node坐标
-            targetPos.x = newPos.x;
-            targetPos.y = newPos.y;
+            nodeList[element.target].x = newPos.x;
+            nodeList[element.target].y = newPos.y;
         } else {
             //保存修改了的source Node坐标
-            sourcePos.x = newPos.x;
-            sourcePos.y = newPos.y;
+            nodeList[element.source].x = newPos.x;
+            nodeList[element.source].y = newPos.y;
         }
 
         edgeList[element.id] = line;//保存边引用
@@ -223,6 +223,11 @@ function setNode(graph, id) {
 }
 
 function drawSourceShape(id, shape, sourcePos, targetPos, nodeWidth) {
+    //贴一起了就别显示啦
+    if((Math.abs(sourcePos.y - targetPos.y)<nodeWidth*2)&&
+    (Math.abs(sourcePos.x - targetPos.x)<nodeWidth*2)){
+        nodeWidth = 0;
+    }
     switch (shape) {
         case 'circle':
             let angle = Math.atan(Math.abs(sourcePos.y - targetPos.y) / Math.abs(sourcePos.x - targetPos.x))
@@ -270,6 +275,11 @@ function drawSourceShape(id, shape, sourcePos, targetPos, nodeWidth) {
 }
 
 function drawTargetShape(id, shape, sourcePos, targetPos, nodeWidth) {
+    //贴一起了就别显示啦
+    if((Math.abs(sourcePos.y - targetPos.y)<nodeWidth*2)&&
+    (Math.abs(sourcePos.x - targetPos.x)<nodeWidth*2)){
+        nodeWidth = 0;
+    }
     switch (shape) {
         case 'triangle':
             //这个三角形默认按顶角为50°，两个底角为65°来算，两边长先按一半nodeWidth来算吧
