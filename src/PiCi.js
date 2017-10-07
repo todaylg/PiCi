@@ -22,7 +22,6 @@ document.body.appendChild(renderer.view);
 const SCALE_MAX = 24, SCALE_MIN = 0.1;//For scale limmit
 let nodeWidth = 32;
 let point = {};//Todo 这里以后指针的形状也可以自定义
-let mousedownFlag = false;
 let movePosBegin = {};
 
 
@@ -135,6 +134,8 @@ function setNode(graph, id) {
         // store a reference to the data
         // the reason for this is because of multitouch
         // we want to track the movement of this particular touch
+        event.stopPropagation();
+        console.log("pointdown!!!");
         this.data = event.data;
         this.dragging = true;
     }
@@ -410,15 +411,6 @@ function zooming(zoomFlag, x, y) {
             stage.position.set(stage.x - (point.x * -0.1), stage.y - (point.y * -0.1))
         }
     }
-    //For caculate moving pos
-    // offset.x = stage.x - scalePosBegin.x;
-    // offset.y = stage.y - scalePosBegin.y;
-
-    // console.log("offset!!")
-    // console.log(offset);
-    // console.log("after!!")
-    // console.log(stage.x);
-    // console.log(stage.y);
     stage.scale.set(scale, scale);
     renderer.render(stage);
 }
@@ -429,46 +421,71 @@ function drawCircle(x, y, r = 30) {
 
     circle.drawCircle(0, 0, r);
     circle.endFill();
-
-    circle.x = x;
-    circle.y = y;
+    let localPos = toLocalPos(x, y);
+    circle.x = localPos.x;
+    circle.y = localPos.y;
     point.circle = circle;
     dragContainer.addChild(circle);
 }
 
 // Drag/Move
 let startMousePos = {};
-renderer.view.addEventListener('mousedown', function (e) {
+
+stage.hitArea = new PIXI.Rectangle(0, 0, window.innerWidth, window.innerHeight);
+stage.interactive = true;
+stage.buttonMode = true;
+
+stage.on('pointerdown', stagePointerDown)
+     .on('pointerup', stagePointerUp)
+     .on('pointerupoutside', stagePointerUp)
+     .on('pointermove', stagePointerMove);
+
+function stagePointerDown(event) {
+    this.dragging = true;
     movePosBegin.x = stage.x;
     movePosBegin.y = stage.y;
-    mousedownFlag = true;
-    let x = e.pageX, y = e.pageY;
-    let localPos = toLocalPos(x, y)
+    let newPosition = event.data.global;
+    let x = newPosition.x;
+    let y = newPosition.y;
     startMousePos.x = x; startMousePos.y = y;
     //Draw circle
     let r = 30 / stage.scale.x;
-    drawCircle(localPos.x, localPos.y, r);
+    drawCircle(x, y, r);
     renderer.render(stage);
-});
+}
 
-renderer.view.addEventListener('mouseup', function (e) {
-    mousedownFlag = false;
+function stagePointerUp(event) {
+    this.dragging = false;
     //Remove  circle
     if (point.circle) dragContainer.removeChild(point.circle);
     renderer.render(stage);
-});
+}
 
-renderer.view.addEventListener('mousemove', function (e) {
-
-    if (mousedownFlag) {
+function stagePointerMove(event) {
+    if (this.dragging) {
         //Move  circle
-        let x = e.pageX, y = e.pageY;
+        let newPosition = event.data.global;
+        let x = newPosition.x;
+        let y = newPosition.y;
 
-        moveTest(x, y);
+        //Remove  circle first
+        if (point.circle) dragContainer.removeChild(point.circle);
+        //Redraw circle
+        //Current scale    
+        let scale = stage.scale.x;
+        let r = 30 / scale;
+        drawCircle(x, y, r);
 
+        //需要注意这里的差值必须要拿global坐标来算而不是to stageLocalPos来算
+        //因为stage.x/y按照的是global坐标来移动的
+        let offsetX = x - startMousePos.x,//差值
+            offsetY = y - startMousePos.y;
+
+        stage.x = movePosBegin.x + offsetX;
+        stage.y = movePosBegin.y + offsetY;//修正差
         renderer.render(stage);
     }
-});
+}
 
 function toLocalPos(x, y) {
     let mouse = new PIXI.Point(x, y);
@@ -476,36 +493,6 @@ function toLocalPos(x, y) {
     return localPos;
 }
 
-function moveTest(x, y) {
-    let localPos = toLocalPos(x, y);
-    //Remove  circle first
-    if (point.circle) dragContainer.removeChild(point.circle);
-    //Redraw circle
-    let r = 30 / stage.scale.x;
-    drawCircle(localPos.x, localPos.y, r);
-
-    let offsetX = x - startMousePos.x,//差值
-        offsetY = y - startMousePos.y;
-
-    //Current scale    
-    let scale = stage.scale.x;
-    //早知如此，何必当初呢？浪费了一下午啊老铁！！！血的教训
-    //笔记一下神奇的坐标系差值计算法
-    //以两个坐标系之间的差值作为stage的x,y值(相当于修正offset)，将位置摆正，简洁明了
-    //西卡西！！！！
-    //处理不了放大以后的修正！！你反正被卡了一个下午，记录放大后和放大之前的stage坐标差值再进行修正也不好使
-    //莫名其妙的bug：一拖一顿一位移，哪天闲得蛋疼了再研究吧
-    // offsetX = x - toLocalPos(startMousePos.x);
-    // if (scale == 1) {
-    //     stage.x = offsetX;
-    //     stage.y = offsetY;
-    // }
-    stage.x = movePosBegin.x + offsetX;
-    stage.y = movePosBegin.y + offsetY;//修正差值
-
-}
-
 
 export default PiCi;
-
 
