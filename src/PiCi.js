@@ -17,11 +17,14 @@ let stage = new Container(),
         // forceFXAA: true,//For WebglRender AA
         backgroundColor: 0x1099bb
     });//Todo=> parameter
-
 document.body.appendChild(renderer.view);
 
 const SCALE_MAX = 24, SCALE_MIN = 0.1;//For scale limmit
 let nodeWidth = 32;
+let point = {};//Todo 这里以后指针的形状也可以自定义
+let mousedownFlag = false;
+let movePosBegin = {};
+
 
 //先试试分开保存，便于搜索，先这样吧
 let nodeList = {},
@@ -173,8 +176,8 @@ function setNode(graph, id) {
         edgeContainer.removeChild(oldLine);//删除线重新画
 
         //Get position info
-        let sourcePos = targetFlag?nodeList[element.source]:newPos,//起点（node坐标）
-            targetPos = targetFlag?newPos:nodeList[element.target];//终点（node坐标）
+        let sourcePos = targetFlag ? nodeList[element.source] : newPos,//起点（node坐标）
+            targetPos = targetFlag ? newPos : nodeList[element.target];//终点（node坐标）
 
         let newSourcePos, newTargetPos;
         //别着急画线啊，先画箭头和椭圆
@@ -212,7 +215,6 @@ function setNode(graph, id) {
     graph.interactive = true;
     // this button mode will mean the hand cursor appears when you roll over the bunny with your mouse
     graph.buttonMode = true;
-
     graph
         .on('pointerdown', onDragStart)
         .on('pointerup', onDragEnd)
@@ -224,8 +226,8 @@ function setNode(graph, id) {
 
 function drawSourceShape(id, shape, sourcePos, targetPos, nodeWidth) {
     //贴一起了就别显示啦
-    if((Math.abs(sourcePos.y - targetPos.y)<nodeWidth*2)&&
-    (Math.abs(sourcePos.x - targetPos.x)<nodeWidth*2)){
+    if ((Math.abs(sourcePos.y - targetPos.y) < nodeWidth * 1.5) &&
+        (Math.abs(sourcePos.x - targetPos.x) < nodeWidth * 1.5)) {
         nodeWidth = 0;
     }
     switch (shape) {
@@ -276,8 +278,8 @@ function drawSourceShape(id, shape, sourcePos, targetPos, nodeWidth) {
 
 function drawTargetShape(id, shape, sourcePos, targetPos, nodeWidth) {
     //贴一起了就别显示啦
-    if((Math.abs(sourcePos.y - targetPos.y)<nodeWidth*2)&&
-    (Math.abs(sourcePos.x - targetPos.x)<nodeWidth*2)){
+    if ((Math.abs(sourcePos.y - targetPos.y) < nodeWidth * 1.5) &&
+        (Math.abs(sourcePos.x - targetPos.x) < nodeWidth * 1.5)) {
         nodeWidth = 0;
     }
     switch (shape) {
@@ -373,7 +375,7 @@ function drawTargetShape(id, shape, sourcePos, targetPos, nodeWidth) {
             arrowList[id].targetArrow = triangle;
             arrowContainer.addChild(triangle);
             renderer.render(stage);
-            
+
             return {
                 x: centerX,
                 y: centerY
@@ -393,27 +395,116 @@ renderer.view.addEventListener('wheel', function (e) {
 function zooming(zoomFlag, x, y) {
     //Current scale    
     let scale = stage.scale.x;
-    //Mouse position    
-    let mouse = new PIXI.Point(x, y);
-    //Mouse position relative to Container    
-    let point = stage.toLocal(mouse);//same   maybe dont need this change
+    let point = toLocalPos(x, y);
     //Zooming    
     if (zoomFlag) {
         if (scale < SCALE_MAX) {
             scale += 0.1;
             //moving      
-            stage.position.set(-(point.x * (scale - 1)), -(point.y * (scale - 1)))
+            stage.position.set(stage.x - (point.x * 0.1), stage.y - (point.y * 0.1))
         }
     } else {
         if (scale > SCALE_MIN) {
             scale -= 0.1;
-            //moving            
-            stage.position.set(-(point.x * (scale - 1)), -(point.y * (scale - 1)))
+            //moving
+            stage.position.set(stage.x - (point.x * -0.1), stage.y - (point.y * -0.1))
         }
     }
+    //For caculate moving pos
+    // offset.x = stage.x - scalePosBegin.x;
+    // offset.y = stage.y - scalePosBegin.y;
+
+    // console.log("offset!!")
+    // console.log(offset);
+    // console.log("after!!")
+    // console.log(stage.x);
+    // console.log(stage.y);
     stage.scale.set(scale, scale);
     renderer.render(stage);
 }
+
+function drawCircle(x, y, r = 30) {
+    let circle = new Graphics();
+    circle.beginFill(0x000000, 0.2);
+
+    circle.drawCircle(0, 0, r);
+    circle.endFill();
+
+    circle.x = x;
+    circle.y = y;
+    point.circle = circle;
+    dragContainer.addChild(circle);
+}
+
+// Drag/Move
+let startMousePos = {};
+renderer.view.addEventListener('mousedown', function (e) {
+    movePosBegin.x = stage.x;
+    movePosBegin.y = stage.y;
+    mousedownFlag = true;
+    let x = e.pageX, y = e.pageY;
+    let localPos = toLocalPos(x, y)
+    startMousePos.x = x; startMousePos.y = y;
+    //Draw circle
+    let r = 30 / stage.scale.x;
+    drawCircle(localPos.x, localPos.y, r);
+    renderer.render(stage);
+});
+
+renderer.view.addEventListener('mouseup', function (e) {
+    mousedownFlag = false;
+    //Remove  circle
+    if (point.circle) dragContainer.removeChild(point.circle);
+    renderer.render(stage);
+});
+
+renderer.view.addEventListener('mousemove', function (e) {
+
+    if (mousedownFlag) {
+        //Move  circle
+        let x = e.pageX, y = e.pageY;
+
+        moveTest(x, y);
+
+        renderer.render(stage);
+    }
+});
+
+function toLocalPos(x, y) {
+    let mouse = new PIXI.Point(x, y);
+    let localPos = stage.toLocal(mouse);
+    return localPos;
+}
+
+function moveTest(x, y) {
+    let localPos = toLocalPos(x, y);
+    //Remove  circle first
+    if (point.circle) dragContainer.removeChild(point.circle);
+    //Redraw circle
+    let r = 30 / stage.scale.x;
+    drawCircle(localPos.x, localPos.y, r);
+
+    let offsetX = x - startMousePos.x,//差值
+        offsetY = y - startMousePos.y;
+
+    //Current scale    
+    let scale = stage.scale.x;
+    //早知如此，何必当初呢？浪费了一下午啊老铁！！！血的教训
+    //笔记一下神奇的坐标系差值计算法
+    //以两个坐标系之间的差值作为stage的x,y值(相当于修正offset)，将位置摆正，简洁明了
+    //西卡西！！！！
+    //处理不了放大以后的修正！！你反正被卡了一个下午，记录放大后和放大之前的stage坐标差值再进行修正也不好使
+    //莫名其妙的bug：一拖一顿一位移，哪天闲得蛋疼了再研究吧
+    // offsetX = x - toLocalPos(startMousePos.x);
+    // if (scale == 1) {
+    //     stage.x = offsetX;
+    //     stage.y = offsetY;
+    // }
+    stage.x = movePosBegin.x + offsetX;
+    stage.y = movePosBegin.y + offsetY;//修正差值
+
+}
+
 
 export default PiCi;
 
