@@ -3,20 +3,25 @@ import * as PIXI from "pixi.js";
 
 //Aliases
 let Container = PIXI.Container,
-    CanvasRenderer = PIXI.CanvasRenderer,// Fixed!! use Canvas force!！
+    Application = PIXI.Application,// Fixed!! use Canvas force!！
     Sprite = PIXI.Sprite,
     Graphics = PIXI.Graphics;
 
-let stage = new Container(),
+let renderer = new Application(window.innerWidth, window.innerHeight, {
+        antialias: true,//这抗锯齿一开整个世界都变了  => use Canvas no Webgl!!!
+        forceFXAA: true,//For WebglRender AA
+        backgroundColor: 0x1099bb
+    }),//Todo=> parameter
+    stage = renderer.stage,
     edgeContainer = new Container(),
     arrowContainer = new Container(),
     nodeContainer = new Container(),//节点在边之上
-    dragContainer = new Container(),//拖拽的节点处于最高层级
-    renderer = new CanvasRenderer(window.innerWidth, window.innerHeight, {
-        // antialias: true,//这抗锯齿一开整个世界都变了  => use Canvas no Webgl!!!
-        // forceFXAA: true,//For WebglRender AA
-        backgroundColor: 0x1099bb
-    });//Todo=> parameter
+    dragContainer = new Container();//拖拽的节点处于最高层级
+    //Canvas(defalut is Webgl) Render test
+    // renderer.renderer = new PIXI.CanvasRenderer(window.innerWidth, window.innerHeight, {
+    //     backgroundColor: 0x1099bb
+    // })
+
 document.body.appendChild(renderer.view);
 
 const SCALE_MAX = 24, SCALE_MIN = 0.1;//For scale limmit
@@ -124,8 +129,6 @@ function PiCi(opts) {
     stage.addChild(arrowContainer);
     stage.addChild(nodeContainer);
     stage.addChild(dragContainer);
-    // Render the stage
-    renderer.render(stage);
 }
 
 function setNode(graph, id) {
@@ -146,7 +149,6 @@ function setNode(graph, id) {
         //归位
         dragContainer.removeChild(this);
         nodeContainer.addChild(this);
-        renderer.render(stage);
     }
 
     let onDragMove = function () {
@@ -157,7 +159,6 @@ function setNode(graph, id) {
             updateEdge(id, newPosition);//闭包的缘故，id是能访问得到的
             nodeContainer.removeChild(this);
             dragContainer.addChild(this);
-            renderer.render(stage);
         }
     }
 
@@ -268,7 +269,6 @@ function drawSourceShape(id, shape, sourcePos, targetPos) {
             //save newArrow
             arrowList[id].sourceArrow = circle;
             arrowContainer.addChild(circle);
-            renderer.render(stage);
 
             return {
                 x: posX,
@@ -377,7 +377,6 @@ function drawTargetShape(id, shape, sourcePos, targetPos) {
             //save newArrow
             arrowList[id].targetArrow = triangle;
             arrowContainer.addChild(triangle);
-            renderer.render(stage);
 
             return {
                 x: centerX,
@@ -414,7 +413,6 @@ function zooming(zoomFlag, x, y) {
         }
     }
     stage.scale.set(scale, scale);
-    renderer.render(stage);
 }
 
 function drawCircle(x, y, r = 30) {
@@ -453,14 +451,12 @@ function stagePointerDown(event) {
     //Draw circle
     let r = 30 / stage.scale.x;
     drawCircle(x, y, r);
-    renderer.render(stage);
 }
 
 function stagePointerUp(event) {
     this.dragging = false;
     //Remove  circle
     if (point.circle) dragContainer.removeChild(point.circle);
-    renderer.render(stage);
 }
 
 function stagePointerMove(event) {
@@ -484,8 +480,7 @@ function stagePointerMove(event) {
             offsetY = y - startMousePos.y;
 
         stage.x = movePosBegin.x + offsetX;
-        stage.y = movePosBegin.y + offsetY;//修正差
-        renderer.render(stage);
+        stage.y = movePosBegin.y + offsetY;//修正差值
     }
 }
 
