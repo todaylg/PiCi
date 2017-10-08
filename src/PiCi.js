@@ -8,7 +8,7 @@ let Container = PIXI.Container,
     Graphics = PIXI.Graphics;
 
 let renderer = new Application(window.innerWidth, window.innerHeight, {
-        antialias: true,//这抗锯齿一开整个世界都变了  => use Canvas no Webgl!!!
+        antialias: true,// antialias: true,//这抗锯齿一开整个世界都变了  => renderer = new PIXI.WebGLRenderer + renderer.render(stage);
         forceFXAA: true,//For WebglRender AA
         backgroundColor: 0x1099bb
     }),//Todo=> parameter
@@ -175,18 +175,25 @@ function setNode(graph, id) {
     let drawNewEdge = function (element, targetFlag, newPos) {
         let oldLine = edgeList[element.id];//在线的引用保存对象里找到线
         edgeContainer.removeChild(oldLine);//删除线重新画
-
-        //Get position info
-        let sourcePos = targetFlag ? nodeList[element.source] : newPos,//起点（node坐标）
-            targetPos = targetFlag ? newPos : nodeList[element.target];//终点（node坐标）
-
+        //不落帧
+        if (targetFlag) {
+            nodeList[element.target].x = newPos.x;
+            nodeList[element.target].y = newPos.y;
+        } else {
+            nodeList[element.source].x = newPos.x;
+            nodeList[element.source].y = newPos.y;
+        }
+     
+        let sourcePos = nodeList[element.source],//起点（node坐标）
+            targetPos =  nodeList[element.target];//终点（node坐标）
+        
         let newSourcePos, newTargetPos;
-        //别着急画线啊，先画箭头和椭圆
+        //别着急画线啊，先画箭头和圆
         if (element.targetShape) {
-            newTargetPos = drawTargetShape(element.id, element.targetShape, sourcePos, targetPos, nodeWidth);
+            newTargetPos = drawTargetShape(element.id, element.targetShape, sourcePos, targetPos);
         }
         if (element.sourceShape) {
-            newSourcePos = drawSourceShape(element.id, element.sourceShape, sourcePos, targetPos, nodeWidth);
+            newSourcePos = drawSourceShape(element.id, element.sourceShape, sourcePos, targetPos);
         }
 
         let tempSourcePos = newSourcePos ? newSourcePos : sourcePos;
@@ -228,6 +235,7 @@ function setNode(graph, id) {
 function drawSourceShape(id, shape, sourcePos, targetPos) {
     let nodeRadius = nodeWidth;
     if(sourcePos.width)nodeRadius = sourcePos.width;
+    console.log(nodeRadius);
     //贴一起了就别显示啦
     if ((Math.abs(sourcePos.y - targetPos.y) < nodeRadius * 1.5) &&
         (Math.abs(sourcePos.x - targetPos.x) < nodeRadius * 1.5)) {
