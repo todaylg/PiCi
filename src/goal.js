@@ -3,8 +3,10 @@ import PiCi from './PiCi.js';
 PiCi({
     container: document.getElementById('cy'),
     elements: [//先node再edge
-        { data: { id: 'a', x: 342, y: 42 } },
+        { data: { id: 'a', x: 342, y: 42 ,width:40} },
         { data: { id: 'b', x: 212, y: 312 } },
+        { data: { id: 'c', x: 242, y: 642 } },
+        { data: { id: 'd', x: 412, y: 112 } },
         {
             data: {
                 id: 'ab',
@@ -13,7 +15,26 @@ PiCi({
                 targetShape: 'triangle',
                 sourceShape: 'circle',
             }
-        }],
+        },
+        {
+            data: {
+                id: 'cd',
+                source: 'c',
+                target: 'd',
+                targetShape: 'triangle',
+                sourceShape: 'circle',
+            }
+        },
+        {
+            data: {
+                id: 'bc',
+                source: 'b',
+                target: 'c',
+                targetShape: 'triangle',
+                sourceShape: 'circle',
+            }
+        },
+    ],
     // style: [
     //     {
     //         selector: 'node',

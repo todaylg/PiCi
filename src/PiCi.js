@@ -20,10 +20,9 @@ let stage = new Container(),
 document.body.appendChild(renderer.view);
 
 const SCALE_MAX = 24, SCALE_MIN = 0.1;//For scale limmit
-let nodeWidth = 32;
+let nodeWidth=30;//默认值
 let point = {};//Todo 这里以后指针的形状也可以自定义
 let movePosBegin = {};
-
 
 //先试试分开保存，便于搜索，先这样吧
 let nodeList = {},
@@ -37,7 +36,6 @@ function PiCi(opts) {
     opts = Object.assign({}, opts);
     //Extrac nodes/edges information from opts
     let elements = opts.elements;
-
     if (!elements) elements = [];
     if (elements.length > 0) {
         for (let i = 0, l = elements.length; i < l; i++) {
@@ -56,7 +54,7 @@ function PiCi(opts) {
                     break;
                 }
             }
-
+            
             if (data.source && data.target) {
                 //Save this edge's info
                 edgeInfoList[data.id] = data;
@@ -64,14 +62,15 @@ function PiCi(opts) {
                 //Get position info
                 let source = nodeList[data.source];
                 let target = nodeList[data.target];
+            
                 let newSourcePos, newTargetPos;
                 //别着急画线啊，先画箭头和椭圆(Arrow first)
                 if (data.targetShape) {
                     //Todo => nodeWidth
-                    newTargetPos = drawTargetShape(data.id, data.targetShape, source, target, nodeWidth);
+                    newTargetPos = drawTargetShape(data.id, data.targetShape, source, target);
                 }
                 if (data.sourceShape) {
-                    newSourcePos = drawSourceShape(data.id, data.sourceShape, source, target, nodeWidth);
+                    newSourcePos = drawSourceShape(data.id, data.sourceShape, source, target);
                 }
 
                 let tempSourcePos = newSourcePos ? newSourcePos : source;
@@ -85,7 +84,7 @@ function PiCi(opts) {
                 //先直线版
                 line.lineTo(tempTargetPos.x, tempTargetPos.y);
                 //line.quadraticCurveTo((tempSourcePos.x + tempTargetPos.x) / 2, (tempSourcePos.y + tempTargetPos.y) / 2 + 100, tempTargetPos.x, tempTargetPos.y);
-
+                
                 edgeList[data.id] = line;//保存边引用
 
                 edgeContainer.addChild(line);
@@ -105,8 +104,9 @@ function PiCi(opts) {
                     circle.beginFill(0x000000);
                 }
                 //-------
-
-                circle.drawCircle(0, 0, nodeWidth);
+                let width = nodeWidth;
+                if(data.width)width=data.width;
+                circle.drawCircle(0, 0, width);
                 circle.endFill();
                 circle = setNode(circle, data.id);
 
@@ -114,7 +114,7 @@ function PiCi(opts) {
                 //Todo => Node坐标随机分布
                 circle.x = data.x;
                 circle.y = data.y;
-
+                
                 nodeContainer.addChild(circle);
             }
         }
@@ -135,7 +135,6 @@ function setNode(graph, id) {
         // the reason for this is because of multitouch
         // we want to track the movement of this particular touch
         event.stopPropagation();
-        console.log("pointdown!!!");
         this.data = event.data;
         this.dragging = true;
     }
@@ -225,20 +224,21 @@ function setNode(graph, id) {
     return graph;
 }
 
-function drawSourceShape(id, shape, sourcePos, targetPos, nodeWidth) {
+function drawSourceShape(id, shape, sourcePos, targetPos) {
+    let nodeRadius = nodeWidth;
+    if(sourcePos.width)nodeRadius = sourcePos.width;
     //贴一起了就别显示啦
-    if ((Math.abs(sourcePos.y - targetPos.y) < nodeWidth * 1.5) &&
-        (Math.abs(sourcePos.x - targetPos.x) < nodeWidth * 1.5)) {
-        nodeWidth = 0;
+    if ((Math.abs(sourcePos.y - targetPos.y) < nodeRadius * 1.5) &&
+        (Math.abs(sourcePos.x - targetPos.x) < nodeRadius * 1.5)) {
+            nodeRadius = 0;
     }
     switch (shape) {
         case 'circle':
             let angle = Math.atan(Math.abs(sourcePos.y - targetPos.y) / Math.abs(sourcePos.x - targetPos.x))
-            let circleWidth = nodeWidth / 2;
-
+            let circleWidth = nodeRadius / 2;
             //posX和posY就是circle的最终中心坐标
-            let posX = (nodeWidth + circleWidth) * Math.cos(angle),
-                posY = (nodeWidth + circleWidth) * Math.sin(angle);
+            let posX = (nodeRadius + circleWidth) * Math.cos(angle),
+                posY = (nodeRadius + circleWidth) * Math.sin(angle);
 
             //分类讨论target和source的相对左右位置
             if (sourcePos.x > targetPos.x) {//source节点在右边
@@ -277,27 +277,29 @@ function drawSourceShape(id, shape, sourcePos, targetPos, nodeWidth) {
     }
 }
 
-function drawTargetShape(id, shape, sourcePos, targetPos, nodeWidth) {
+function drawTargetShape(id, shape, sourcePos, targetPos) {
+    let nodeRadius = nodeWidth;
+    if(targetPos.width)nodeRadius = targetPos.width;
     //贴一起了就别显示啦
-    if ((Math.abs(sourcePos.y - targetPos.y) < nodeWidth * 1.5) &&
-        (Math.abs(sourcePos.x - targetPos.x) < nodeWidth * 1.5)) {
-        nodeWidth = 0;
+    if ((Math.abs(sourcePos.y - targetPos.y) < nodeRadius * 1.5) &&
+        (Math.abs(sourcePos.x - targetPos.x) < nodeRadius * 1.5)) {
+            nodeRadius = 0;
     }
     switch (shape) {
         case 'triangle':
             //这个三角形默认按顶角为50°，两个底角为65°来算，两边长先按一半nodeWidth来算吧
             //先画出来再想抽象的事
             let topAngle = Math.PI / 180 * 50,//角度转弧度，注意Math的那些方法的单位是弧度
-                sideEdge = nodeWidth,//瞅着合适，先凑合
+                sideEdge = nodeRadius,//瞅着合适，先凑合
                 halfBottomEdge = Math.sin(topAngle / 2) * sideEdge,
                 centerEdge = Math.cos(topAngle / 2) * sideEdge;
             //angle是一样的，先按node中心算，arrow中心算之后再说，先todo(直线版看出不这个问题，曲线就崩了)
             let angle = Math.atan(Math.abs(sourcePos.y - targetPos.y) / Math.abs(sourcePos.x - targetPos.x));
-            let beginPosX = nodeWidth * Math.cos(angle),
-                beginPosY = nodeWidth * Math.sin(angle),
+            let beginPosX = nodeRadius * Math.cos(angle),
+                beginPosY = nodeRadius * Math.sin(angle),
                 pos1X, pos1Y, pos2X, pos2Y,
-                centerX = (nodeWidth + centerEdge) * Math.cos(angle),
-                centerY = (nodeWidth + centerEdge) * Math.sin(angle);
+                centerX = (nodeRadius + centerEdge) * Math.cos(angle),
+                centerY = (nodeRadius + centerEdge) * Math.sin(angle);
 
             pos1X = pos2X = Math.sin(angle) * halfBottomEdge;
             pos1Y = pos2Y = Math.cos(angle) * halfBottomEdge;//简单的几何知识(手动抽搐😖)
@@ -493,6 +495,4 @@ function toLocalPos(x, y) {
     return localPos;
 }
 
-
 export default PiCi;
-
