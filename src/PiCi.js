@@ -1,4 +1,5 @@
 import * as PIXI from "pixi.js";
+
 //Encapsulation pixi => export PiCi 
 
 //Aliases
@@ -8,24 +9,24 @@ let Container = PIXI.Container,
     Graphics = PIXI.Graphics;
 
 let renderer = new Application(window.innerWidth, window.innerHeight, {
-        antialias: true,// antialias: true,//这抗锯齿一开整个世界都变了  => renderer = new PIXI.WebGLRenderer + renderer.render(stage);
-        forceFXAA: true,//For WebglRender AA
-        backgroundColor: 0x1099bb
-    }),//Todo=> parameter
+    antialias: true,// antialias: true,//这抗锯齿一开整个世界都变了  => renderer = new PIXI.WebGLRenderer + renderer.render(stage);
+    forceFXAA: true,//For WebglRender AA
+    backgroundColor: 0x1099bb
+}),//Todo=> parameter
     stage = renderer.stage,
     edgeContainer = new Container(),
     arrowContainer = new Container(),
     nodeContainer = new Container(),//节点在边之上
     dragContainer = new Container();//拖拽的节点处于最高层级
-    //Canvas(defalut is Webgl) Render test
-    // renderer.renderer = new PIXI.CanvasRenderer(window.innerWidth, window.innerHeight, {
-    //     backgroundColor: 0x1099bb
-    // })
+//Canvas(defalut is Webgl) Render test
+// renderer.renderer = new PIXI.CanvasRenderer(window.innerWidth, window.innerHeight, {
+//     backgroundColor: 0x1099bb
+// })
 
 document.body.appendChild(renderer.view);
 
 const SCALE_MAX = 24, SCALE_MIN = 0.1;//For scale limmit
-let nodeWidth=30;//默认值
+let nodeWidth = 30;//默认值
 let point = {};//Todo 这里以后指针的形状也可以自定义
 let movePosBegin = {};
 
@@ -36,11 +37,13 @@ let nodeList = {},
     edgeInfoList = {};//保存边信息
 
 let testOrder = true; //Use to test z-index
+let midPos;
 
 function PiCi(opts) {
     opts = Object.assign({}, opts);
     //Extrac nodes/edges information from opts
     let elements = opts.elements;
+
     if (!elements) elements = [];
     if (elements.length > 0) {
         for (let i = 0, l = elements.length; i < l; i++) {
@@ -59,7 +62,7 @@ function PiCi(opts) {
                     break;
                 }
             }
-            
+
             if (data.source && data.target) {
                 //Save this edge's info
                 edgeInfoList[data.id] = data;
@@ -67,29 +70,40 @@ function PiCi(opts) {
                 //Get position info
                 let source = nodeList[data.source];
                 let target = nodeList[data.target];
-            
+
                 let newSourcePos, newTargetPos;
                 //别着急画线啊，先画箭头和椭圆(Arrow first)
-                if (data.targetShape) {
-                    //Todo => nodeWidth
+                if (data.targetShape && data.curveStyle === "bezier") {
+                    if (!midPos) midPos = caculateBezierMidPos(source, target, 100);
+                    newTargetPos = drawTargetShape(data.id, data.targetShape, midPos, target);
+                } else if (data.targetShape) {
                     newTargetPos = drawTargetShape(data.id, data.targetShape, source, target);
                 }
-                if (data.sourceShape) {
+                if (data.sourceShape && data.curveStyle === "bezier") {
+                    if (!midPos) midPos = caculateBezierMidPos(source, target, 100);
+                    //test
+                    console.log(midPos);
+                    drawCircle(midPos.x, midPos.y,5);
+                    newSourcePos = drawSourceShape(data.id, data.sourceShape, source, midPos);
+                } else if (data.sourceShape) {
                     newSourcePos = drawSourceShape(data.id, data.sourceShape, source, target);
                 }
 
                 let tempSourcePos = newSourcePos ? newSourcePos : source;
                 let tempTargetPos = newTargetPos ? newTargetPos : target;
 
+               
                 //Draw edge
                 let line = new Graphics();
                 line.lineStyle(4, 0xFFFFFF, 1);
 
                 line.moveTo(tempSourcePos.x, tempSourcePos.y);
-                //先直线版
-                line.lineTo(tempTargetPos.x, tempTargetPos.y);
-                //line.quadraticCurveTo((tempSourcePos.x + tempTargetPos.x) / 2, (tempSourcePos.y + tempTargetPos.y) / 2 + 100, tempTargetPos.x, tempTargetPos.y);
-                
+
+                if (!data.curveStyle) line.lineTo(tempTargetPos.x, tempTargetPos.y);
+                if (data.curveStyle === 'bezier') {
+                    line.quadraticCurveTo(midPos.x, midPos.y, tempTargetPos.x, tempTargetPos.y);
+                }
+
                 edgeList[data.id] = line;//保存边引用
 
                 edgeContainer.addChild(line);
@@ -110,7 +124,7 @@ function PiCi(opts) {
                 }
                 //-------
                 let width = nodeWidth;
-                if(data.width)width=data.width;
+                if (data.width) width = data.width;
                 circle.drawCircle(0, 0, width);
                 circle.endFill();
                 circle = setNode(circle, data.id);
@@ -119,7 +133,7 @@ function PiCi(opts) {
                 //Todo => Node坐标随机分布
                 circle.x = data.x;
                 circle.y = data.y;
-                
+
                 nodeContainer.addChild(circle);
             }
         }
@@ -129,6 +143,36 @@ function PiCi(opts) {
     stage.addChild(arrowContainer);
     stage.addChild(nodeContainer);
     stage.addChild(dragContainer);
+}
+
+function caculateBezierMidPos(tempSourcePos, tempTargetPos, height = 100) {
+    let disX = Math.abs(tempTargetPos.x - tempSourcePos.x), disY = Math.abs(tempTargetPos.y - tempSourcePos.y);
+    let angle = Math.atan(disY / disX);
+    let halfLen = Math.sqrt(disX * disX + disY * disY) / 2;
+    let angle1 = Math.atan(height / halfLen);
+    let angleTotal = angle + angle1;
+    if (angleTotal - Math.PI / 2 > 0) {//两角相加为一个钝角了
+        let angleBeats = Math.PI - (angle + angle1);
+        let edge = 100 / Math.sin(angle1);
+        let xLen = edge * Math.cos(angleBeats);
+        let yLen = edge * Math.sin(angleBeats);
+        let minX = tempSourcePos.x - tempTargetPos.x >= 0 ? tempTargetPos.x : tempSourcePos.x;
+        let minY = tempSourcePos.y - tempTargetPos.y >= 0 ? tempSourcePos.y : tempTargetPos.y;
+        return {
+            x: minX - xLen,
+            y: minY - yLen
+        }
+    } else {//两角相加为一个锐角了
+        let edgeLen = height / Math.sin(angle1);
+        let xLen = edgeLen * Math.sin(angleTotal);
+        let yLen = edgeLen * Math.cos(angleTotal);
+        let maxX = tempSourcePos.x - tempTargetPos.x >= 0 ? tempSourcePos.x : tempTargetPos.x;
+        let minY = tempSourcePos.y - tempTargetPos.y >= 0 ? tempSourcePos.y : tempTargetPos.y;
+        return {
+            x: maxX - xLen,
+            y: minY + yLen
+        }
+    }
 }
 
 function setNode(graph, id) {
@@ -172,51 +216,76 @@ function setNode(graph, id) {
         };
     }
 
-    let drawNewEdge = function (element, targetFlag, newPos) {
-        let oldLine = edgeList[element.id];//在线的引用保存对象里找到线
+    let drawNewEdge = function (data, targetFlag, newPos) {
+        let oldLine = edgeList[data.id];//在线的引用保存对象里找到线
         edgeContainer.removeChild(oldLine);//删除线重新画
         //不落帧
         if (targetFlag) {
-            nodeList[element.target].x = newPos.x;
-            nodeList[element.target].y = newPos.y;
+            nodeList[data.target].x = newPos.x;
+            nodeList[data.target].y = newPos.y;
         } else {
-            nodeList[element.source].x = newPos.x;
-            nodeList[element.source].y = newPos.y;
+            nodeList[data.source].x = newPos.x;
+            nodeList[data.source].y = newPos.y;
         }
-     
-        let sourcePos = nodeList[element.source],//起点（node坐标）
-            targetPos =  nodeList[element.target];//终点（node坐标）
-        
+
+        let source = nodeList[data.source],//起点（node坐标）
+            target = nodeList[data.target];//终点（node坐标）
+
         let newSourcePos, newTargetPos;
-        //别着急画线啊，先画箭头和圆
-        if (element.targetShape) {
-            newTargetPos = drawTargetShape(element.id, element.targetShape, sourcePos, targetPos);
+        //别着急画线啊，先画箭头和椭圆(Arrow first)
+        if (data.targetShape && data.curveStyle === "bezier") {
+            midPos = caculateBezierMidPos(source, target, 100);
+            newTargetPos = drawTargetShape(data.id, data.targetShape, midPos, target);
+        } else if (data.targetShape) {
+            newTargetPos = drawTargetShape(data.id, data.targetShape, source, target);
         }
-        if (element.sourceShape) {
-            newSourcePos = drawSourceShape(element.id, element.sourceShape, sourcePos, targetPos);
+        if (data.sourceShape && data.curveStyle === "bezier") {
+            midPos = caculateBezierMidPos(source, target, 100);
+            //test
+            drawCircle(midPos.x, midPos.y,5);
+            newSourcePos = drawSourceShape(data.id, data.sourceShape, source, midPos);
+        } else if (data.sourceShape) {
+            newSourcePos = drawSourceShape(data.id, data.sourceShape, source, target);
         }
+        // let newSourcePos, newTargetPos;
+        // //别着急画线啊，先画箭头和椭圆(Arrow first)
+        // if (data.targetShape) {
+        //     //Todo => nodeWidth
+        //     newTargetPos = drawTargetShape(data.id, data.targetShape, source, target);
+        // }
 
-        let tempSourcePos = newSourcePos ? newSourcePos : sourcePos;
-        let tempTargetPos = newTargetPos ? newTargetPos : targetPos;//todo 多余了其实
+        // if (data.sourceShape) {
+        //     newSourcePos = drawSourceShape(data.id, data.sourceShape, source, target);
+        // }
 
+        let tempSourcePos = newSourcePos ? newSourcePos : source;
+        let tempTargetPos = newTargetPos ? newTargetPos : target;
+        
         //Draw edge
         let line = new Graphics();
         line.lineStyle(4, 0xFFFFFF, 1);
-        line.moveTo(tempSourcePos.x, tempSourcePos.y);
-        line.lineTo(tempTargetPos.x, tempTargetPos.y);
 
-        //Save position change
-        if (targetFlag) {
-            //保存修改了的target Node坐标
-            nodeList[element.target].x = newPos.x;
-            nodeList[element.target].y = newPos.y;
-        } else {
-            //保存修改了的source Node坐标
-            nodeList[element.source].x = newPos.x;
-            nodeList[element.source].y = newPos.y;
+        line.moveTo(tempSourcePos.x, tempSourcePos.y);
+        //先直线版
+        if (!data.curveStyle) line.lineTo(tempTargetPos.x, tempTargetPos.y);
+        if (data.curveStyle === 'bezier') {
+            let midPos = caculateBezierMidPos(source, target, 100);
+
+            line.quadraticCurveTo(midPos.x, midPos.y, tempTargetPos.x, tempTargetPos.y);
         }
 
-        edgeList[element.id] = line;//保存边引用
+        // //Save position change
+        if (targetFlag) {
+            //保存修改了的target Node坐标
+            nodeList[data.target].x = newPos.x;
+            nodeList[data.target].y = newPos.y;
+        } else {
+            //保存修改了的source Node坐标
+            nodeList[data.source].x = newPos.x;
+            nodeList[data.source].y = newPos.y;
+        }
+
+        edgeList[data.id] = line;//保存边引用
         edgeContainer.addChild(line);
     }
 
@@ -234,12 +303,11 @@ function setNode(graph, id) {
 
 function drawSourceShape(id, shape, sourcePos, targetPos) {
     let nodeRadius = nodeWidth;
-    if(sourcePos.width)nodeRadius = sourcePos.width;
-    console.log(nodeRadius);
+    if (sourcePos.width) nodeRadius = sourcePos.width;
     //贴一起了就别显示啦
     if ((Math.abs(sourcePos.y - targetPos.y) < nodeRadius * 1.5) &&
         (Math.abs(sourcePos.x - targetPos.x) < nodeRadius * 1.5)) {
-            nodeRadius = 0;
+        nodeRadius = 0;
     }
     switch (shape) {
         case 'circle':
@@ -287,11 +355,11 @@ function drawSourceShape(id, shape, sourcePos, targetPos) {
 
 function drawTargetShape(id, shape, sourcePos, targetPos) {
     let nodeRadius = nodeWidth;
-    if(targetPos.width)nodeRadius = targetPos.width;
+    if (targetPos.width) nodeRadius = targetPos.width;
     //贴一起了就别显示啦
     if ((Math.abs(sourcePos.y - targetPos.y) < nodeRadius * 1.5) &&
         (Math.abs(sourcePos.x - targetPos.x) < nodeRadius * 1.5)) {
-            nodeRadius = 0;
+        nodeRadius = 0;
     }
     switch (shape) {
         case 'triangle':
@@ -444,9 +512,9 @@ stage.interactive = true;
 stage.buttonMode = true;
 
 stage.on('pointerdown', stagePointerDown)
-     .on('pointerup', stagePointerUp)
-     .on('pointerupoutside', stagePointerUp)
-     .on('pointermove', stagePointerMove);
+    .on('pointerup', stagePointerUp)
+    .on('pointerupoutside', stagePointerUp)
+    .on('pointermove', stagePointerMove);
 
 function stagePointerDown(event) {
     this.dragging = true;
