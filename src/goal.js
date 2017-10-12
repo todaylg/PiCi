@@ -3,13 +3,25 @@ import PiCi from './PiCi.js';
 PiCi({
     container: document.getElementById('cy'),
     elements: [//先node再edge
-        { data: { id: 'a', x: 342, y: 42 ,width:40,color:"0x000000"} },
-        { data: { id: 'b', x: 212, y: 312 } },
-        { data: { id: 'c', x: 242, y: 642 ,width:60,color:"0x000000"} },
-        { data: { id: 'd', x: 112, y: 112 } },
+        { data: { id: 'a', width:40,color:"0x000000"} },
+        { data: { id: 'b'} },
+        { data: { id: 'c',width:60,color:"0x000000"} },
+        { data: { id: 'd'} },
+        { data: { id: 'e', width:80,color:"0x000000"} },
+        { data: { id: 'f'} },
         {
             data: {
                 id: 'ab',
+                source: 'a',
+                target: 'b',
+                curveStyle: 'bezier',
+                targetShape: 'triangle',
+                sourceShape: 'circle',
+            }
+        },
+        {
+            data: {
+                id: 'abc',
                 source: 'a',
                 target: 'b',
                 targetShape: 'triangle',
@@ -35,25 +47,46 @@ PiCi({
                 sourceShape: 'circle',
             }
         },
+        {
+            data: {
+                id: 'ad',
+                source: 'a',
+                target: 'd',
+                curveStyle: 'bezier',
+                targetShape: 'triangle',
+                sourceShape: 'circle',
+            }
+        },
+        {
+            data: {
+                id: 'bf',
+                source: 'b',
+                target: 'f',
+                curveStyle: 'bezier',
+                targetShape: 'triangle',
+                sourceShape: 'circle',
+            }
+        },
+        {
+            data: {
+                id: 'be',
+                source: 'b',
+                target: 'e',
+                curveStyle: 'bezier',
+                targetShape: 'triangle',
+                sourceShape: 'circle',
+            }
+        },
+        {
+            data: {
+                id: 'af',
+                source: 'a',
+                target: 'f',
+                curveStyle: 'bezier',
+                targetShape: 'triangle',
+                sourceShape: 'circle',
+            }
+        },
     ],
-    //TODO:
-    // style: [
-    //     {
-    //         selector: 'node',
-    //         style: {
-    //             shape: 'hexagon',
-    //             'background-color': 'red',
-    //             label: 'data(id)'
-    //         }
-    //     },
-    //     {
-    //         selector: 'edge',
-    //         style: {
-    //             'target-arrow-shape': 'triangle',
-    //             'source-arrow-shape': 'circle',
-    //             'curve-style': 'bezier',
-    //             'opacity': 0.666,
-    //         }
-    //     }
-    // ]
+    
 })

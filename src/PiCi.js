@@ -36,15 +36,16 @@ let nodeList = {},//Save node
     arrowList = {},//Save arrow
     edgeInfoList = {};//Save edge info
 
+let bezierList = {};//Deal with 2 bezierCurve
 let midPos;//Now is just for Bezier,TODO is for all(include straight use midPos to Calculate)
 
 function PiCi(opts) {
     opts = Object.assign({}, opts);
     //Extrac nodes/edges information from opts
     let elements = opts.elements;
-
+    let nodes = [];
     if (!elements) elements = [];
-    if (elements.length > 0) {
+    if (elements.length > 0) {//init Node
         for (let i = 0, l = elements.length; i < l; i++) {
             let data = elements[i].data,
                 id = data.id;
@@ -62,23 +63,25 @@ function PiCi(opts) {
                 }
             }
 
-            if (data.source && data.target) {//Edge
-                //Save this edge's info
-                edgeInfoList[data.id] = data;
-
-                //Get position info
-                let source = nodeList[data.source];
-                let target = nodeList[data.target];
-
-                drawArrowAndEdge(data, source, target);
-
-            } else {//Node
-
-                drawNode(data);
+            if (!data.source && !data.target) {//Node
+                nodes.push(data);
             }
         }
     }
+    initializeNodes(nodes);
+    for (let i = 0, l = elements.length; i < l; i++) {//init Edge
+        let data = elements[i].data,
+            id = data.id;
+        //Save this edge's info
+        edgeInfoList[data.id] = data;
+        if (data.source && data.target) {//Edge
+            //Get position info
+            let source = nodeList[data.source];
+            let target = nodeList[data.target];
 
+            drawArrowAndEdge(data, source, target);
+        }
+    }
     //层级顺序
     stage.addChild(edgeContainer);
     stage.addChild(arrowContainer);
@@ -94,6 +97,11 @@ function drawArrowAndEdge(data, source, target) {
             case "bezier":
                 //三阶贝塞尔曲线
                 let bMidPos = CacBezierCurveMidPos(source, target, 100);
+                if(bezierList[source+'+'+target]){
+                    bezierList[source+'+'+target] = 1;//'source+target'
+                }else{
+                    bezierList[source+'+'+target]++;
+                }
                 let pos2 = { x: bMidPos.x2, y: bMidPos.y2 }
                 //drawCircle(pos2.x, pos2.y, 5);
                 newTargetPos = drawArrowShape(data.id, data.targetShape, pos2, target, source, target, true);
@@ -101,7 +109,7 @@ function drawArrowAndEdge(data, source, target) {
             case "quadraticCurve":
                 //二阶贝塞尔曲线
                 let cMidPos = CacQuadraticCurveMidPos(source, target, 100);
-                drawCircle(cMidPos.x, cMidPos.y, 5);
+                //drawCircle(cMidPos.x, cMidPos.y, 5);
                 newTargetPos = drawArrowShape(data.id, data.targetShape, cMidPos, target, source, target, true);
                 break;
             default:
@@ -121,7 +129,7 @@ function drawArrowAndEdge(data, source, target) {
             case "quadraticCurve":
                 //二阶贝塞尔曲线
                 let cMidPos = CacQuadraticCurveMidPos(source, target, 100);
-                drawCircle(cMidPos.x, cMidPos.y, 5);
+                //drawCircle(cMidPos.x, cMidPos.y, 5);
                 newSourcePos = drawArrowShape(data.id, data.sourceShape, source, cMidPos, source, target, false);
                 break;
             default:
@@ -159,32 +167,52 @@ function drawArrowAndEdge(data, source, target) {
     edgeContainer.addChild(line);
 }
 
-function drawNode(data) {
-    //Add node to nodeList
-    nodeList[data.id] = data;
-
-    //Draw node
-    let circle = new Graphics();
-
-    if (data.color) {
-        circle.beginFill(data.color);
-    } else {
-        circle.beginFill(0x66CCFF);
+//Random random method
+function initializeNodes(nodes) {
+    let initialRadius = window.innerHeight/6;
+    console.log(initialRadius);
+    let initialAngle = Math.PI * (3 - Math.sqrt(5));
+    let center = {
+        x:window.innerWidth/2,
+        y:window.innerHeight/2
     }
 
-    let width = nodeWidth;
-    if (data.width) width = data.width;
-    circle.drawCircle(0, 0, width);
-    circle.endFill();
-    circle = setNode(circle, data.id);
+    for (let i = 0, n = nodes.length, node; i < n; i++) {
+        node = nodes[i], node.index = i;
+        if (isNaN(node.x) || isNaN(node.y)) {
+            var radius = initialRadius * Math.sqrt(i), angle = (Math.random()*30)* i * initialAngle;
+            node.x = radius * Math.cos(angle)+center.x;
+            node.y = radius * Math.sin(angle)+center.y;
+            console.log(angle);
+        }
+        //Add node to nodeList
+        nodeList[node.id] = node;
 
-    //Move the graph to its designated position
-    //Todo => Node坐标随机分布
-    circle.x = data.x;
-    circle.y = data.y;
+        //Draw node
+        let circle = new Graphics();
 
-    nodeContainer.addChild(circle);
+        if (node.color) {
+            circle.beginFill(node.color);
+        } else {
+            circle.beginFill(0x66CCFF);
+        }
+
+        let width = nodeWidth;
+        if (node.width) width = node.width;
+        circle.drawCircle(0, 0, width);
+        circle.endFill();
+        circle = setNode(circle, node.id);
+
+        //Move the graph to its designated position
+        //Todo => Node坐标随机分布
+        circle.x = node.x;
+        circle.y = node.y;
+
+        nodeContainer.addChild(circle);
+    }
+
 }
+
 
 //脑残算法
 function myStupiedCacQuadraticCurveMidPos(tempSourcePos, tempTargetPos, height = 100) {
@@ -408,7 +436,7 @@ function drawArrowShape(id, shape, sourcePos, targetPos, source, target, targetF
             //边界判定 => 贴一起了就别显示啦
             if ((Math.abs(source.y - target.y) < t_nodeRadius * 1.5) &&
                 (Math.abs(source.x - target.x) < t_nodeRadius * 1.5)) {
-                    t_nodeRadius = 0;
+                t_nodeRadius = 0;
             }
 
             let t_srcPos = targetFlag ? sourcePos : targetPos;
