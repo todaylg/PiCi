@@ -1,24 +1,25 @@
 import * as PIXI from "pixi.js";
-
+import arcToBezier from 'svg-arc-to-cubic-bezier';
 //Encapsulation pixi => export PiCi 
 
 //Aliases
 let Container = PIXI.Container,
-    Application = PIXI.Application,// Fixed!! use Canvas force!！
+    Application = PIXI.Application,
     Sprite = PIXI.Sprite,
     Graphics = PIXI.Graphics;
 
 let renderer = new Application(window.innerWidth, window.innerHeight, {
-    antialias: true,// antialias: true,//这抗锯齿一开整个世界都变了  => renderer = new PIXI.WebGLRenderer + renderer.render(stage);
+    antialias: true,// antialias: true,//这抗锯齿一开整个世界都变了  =>bug(just Chrome,FF is ok): renderer = new PIXI.WebGLRenderer + renderer.render(stage);
     forceFXAA: true,//For WebglRender AA
     backgroundColor: 0x1099bb
 }),//Todo=> parameter
     stage = renderer.stage,
     edgeContainer = new Container(),
     arrowContainer = new Container(),
-    nodeContainer = new Container(),//节点在边之上
-    dragContainer = new Container();//拖拽的节点处于最高层级
-//Canvas(defalut is Webgl) Render test
+    nodeContainer = new Container(),//Node above edge
+    dragContainer = new Container();//Hightest level
+
+//Canvas(defalut is Webgl) Use for Render test
 // renderer.renderer = new PIXI.CanvasRenderer(window.innerWidth, window.innerHeight, {
 //     backgroundColor: 0x1099bb
 // })
@@ -26,18 +27,16 @@ let renderer = new Application(window.innerWidth, window.innerHeight, {
 document.body.appendChild(renderer.view);
 
 const SCALE_MAX = 24, SCALE_MIN = 0.1;//For scale limmit
-let nodeWidth = 30;//默认值
+let nodeWidth = 30;//defalut node radius
 let point = {};//Todo 这里以后指针的形状也可以自定义
 let movePosBegin = {};
 
-//先试试分开保存，便于搜索，先这样吧
-let nodeList = {},
-    edgeList = {},//保存边引用
-    arrowList = {},//保存箭头信息
-    edgeInfoList = {};//保存边信息
+let nodeList = {},//Save node
+    edgeList = {},//Cache edge
+    arrowList = {},//Save arrow
+    edgeInfoList = {};//Save edge info
 
-let testOrder = true; //Use to test z-index
-let midPos;
+let midPos;//Now is just for Bezier,TODO is for all(include straight use midPos to Calculate)
 
 function PiCi(opts) {
     opts = Object.assign({}, opts);
@@ -63,7 +62,7 @@ function PiCi(opts) {
                 }
             }
 
-            if (data.source && data.target) {
+            if (data.source && data.target) {//Edge
                 //Save this edge's info
                 edgeInfoList[data.id] = data;
 
@@ -71,73 +70,15 @@ function PiCi(opts) {
                 let source = nodeList[data.source];
                 let target = nodeList[data.target];
 
-                let newSourcePos, newTargetPos;
-                //别着急画线啊，先画箭头和椭圆(Arrow first)
-                if (data.targetShape && data.curveStyle === "bezier") {
-                    if (!midPos) midPos = caculateBezierMidPos(source, target, 100);
-                    newTargetPos = drawTargetShape(data.id, data.targetShape, midPos, target);
-                } else if (data.targetShape) {
-                    newTargetPos = drawTargetShape(data.id, data.targetShape, source, target);
-                }
-                if (data.sourceShape && data.curveStyle === "bezier") {
-                    if (!midPos) midPos = caculateBezierMidPos(source, target, 100);
-                    //test
-                    console.log(midPos);
-                    drawCircle(midPos.x, midPos.y,5);
-                    newSourcePos = drawSourceShape(data.id, data.sourceShape, source, midPos);
-                } else if (data.sourceShape) {
-                    newSourcePos = drawSourceShape(data.id, data.sourceShape, source, target);
-                }
+                drawArrowAndEdge(data, source, target);
 
-                let tempSourcePos = newSourcePos ? newSourcePos : source;
-                let tempTargetPos = newTargetPos ? newTargetPos : target;
+            } else {//Node
 
-               
-                //Draw edge
-                let line = new Graphics();
-                line.lineStyle(4, 0xFFFFFF, 1);
-
-                line.moveTo(tempSourcePos.x, tempSourcePos.y);
-
-                if (!data.curveStyle) line.lineTo(tempTargetPos.x, tempTargetPos.y);
-                if (data.curveStyle === 'bezier') {
-                    line.quadraticCurveTo(midPos.x, midPos.y, tempTargetPos.x, tempTargetPos.y);
-                }
-
-                edgeList[data.id] = line;//保存边引用
-
-                edgeContainer.addChild(line);
-
-            } else {
-                //Add node to nodeList
-                nodeList[data.id] = data;
-
-                //Draw node
-                let circle = new Graphics();
-
-                //Test z-index   no use ----
-                testOrder = !testOrder;
-                if (testOrder) {
-                    circle.beginFill(0x66CCFF);
-                } else {
-                    circle.beginFill(0x000000);
-                }
-                //-------
-                let width = nodeWidth;
-                if (data.width) width = data.width;
-                circle.drawCircle(0, 0, width);
-                circle.endFill();
-                circle = setNode(circle, data.id);
-
-                //Move the graph to its designated position
-                //Todo => Node坐标随机分布
-                circle.x = data.x;
-                circle.y = data.y;
-
-                nodeContainer.addChild(circle);
+                drawNode(data);
             }
         }
     }
+
     //层级顺序
     stage.addChild(edgeContainer);
     stage.addChild(arrowContainer);
@@ -145,7 +86,108 @@ function PiCi(opts) {
     stage.addChild(dragContainer);
 }
 
-function caculateBezierMidPos(tempSourcePos, tempTargetPos, height = 100) {
+function drawArrowAndEdge(data, source, target) {
+    //Draw Arrow
+    let newSourcePos, newTargetPos;
+    if (data.targetShape) {
+        switch (data.curveStyle) {
+            case "bezier":
+                //三阶贝塞尔曲线
+                let bMidPos = CacBezierCurveMidPos(source, target, 100);
+                let pos2 = { x: bMidPos.x2, y: bMidPos.y2 }
+                //drawCircle(pos2.x, pos2.y, 5);
+                newTargetPos = drawArrowShape(data.id, data.targetShape, pos2, target, source, target, true);
+                break;
+            case "quadraticCurve":
+                //二阶贝塞尔曲线
+                let cMidPos = CacQuadraticCurveMidPos(source, target, 100);
+                drawCircle(cMidPos.x, cMidPos.y, 5);
+                newTargetPos = drawArrowShape(data.id, data.targetShape, cMidPos, target, source, target, true);
+                break;
+            default:
+                newTargetPos = drawArrowShape(data.id, data.targetShape, source, target, source, target, true);
+                break;
+        }
+    }
+    if (data.sourceShape) {
+        switch (data.curveStyle) {
+            case "bezier":
+                //三阶贝塞尔曲线
+                let bMidPos = CacBezierCurveMidPos(source, target, 100);
+                let pos1 = { x: bMidPos.x1, y: bMidPos.y1 }
+                //drawCircle(pos1.x, pos1.y, 5);
+                newSourcePos = drawArrowShape(data.id, data.sourceShape, source, pos1, source, target, false);
+                break;
+            case "quadraticCurve":
+                //二阶贝塞尔曲线
+                let cMidPos = CacQuadraticCurveMidPos(source, target, 100);
+                drawCircle(cMidPos.x, cMidPos.y, 5);
+                newSourcePos = drawArrowShape(data.id, data.sourceShape, source, cMidPos, source, target, false);
+                break;
+            default:
+                newSourcePos = drawArrowShape(data.id, data.sourceShape, source, target, source, target, false);
+                break;
+        }
+    }
+
+    let tempSourcePos = newSourcePos ? newSourcePos : source;
+    let tempTargetPos = newTargetPos ? newTargetPos : target;
+
+    //Draw edge
+    let line = new Graphics();
+    line.lineStyle(4, 0xFFFFFF, 1);
+
+    line.moveTo(tempSourcePos.x, tempSourcePos.y);
+    switch (data.curveStyle) {
+        case "bezier":
+            //三阶贝塞尔曲线
+            let cPos = CacBezierCurveMidPos(tempSourcePos, tempTargetPos, 100);
+            line.bezierCurveTo(cPos.x1, cPos.y1, cPos.x2, cPos.y2, cPos.x, cPos.y);
+            break;
+        case "quadraticCurve":
+            //二阶贝塞尔曲线
+            let bPos = CacQuadraticCurveMidPos(tempSourcePos, tempTargetPos, 100);
+            line.quadraticCurveTo(bPos.x, bPos.y, tempTargetPos.x, tempTargetPos.y);
+            break;
+        default:
+            line.lineTo(tempTargetPos.x, tempTargetPos.y);
+            break;
+    }
+
+    edgeList[data.id] = line;//保存边引用
+
+    edgeContainer.addChild(line);
+}
+
+function drawNode(data) {
+    //Add node to nodeList
+    nodeList[data.id] = data;
+
+    //Draw node
+    let circle = new Graphics();
+
+    if (data.color) {
+        circle.beginFill(data.color);
+    } else {
+        circle.beginFill(0x66CCFF);
+    }
+
+    let width = nodeWidth;
+    if (data.width) width = data.width;
+    circle.drawCircle(0, 0, width);
+    circle.endFill();
+    circle = setNode(circle, data.id);
+
+    //Move the graph to its designated position
+    //Todo => Node坐标随机分布
+    circle.x = data.x;
+    circle.y = data.y;
+
+    nodeContainer.addChild(circle);
+}
+
+//脑残算法
+function myStupiedCacQuadraticCurveMidPos(tempSourcePos, tempTargetPos, height = 100) {
     let disX = Math.abs(tempTargetPos.x - tempSourcePos.x), disY = Math.abs(tempTargetPos.y - tempSourcePos.y);
     let angle = Math.atan(disY / disX);
     let halfLen = Math.sqrt(disX * disX + disY * disY) / 2;
@@ -173,6 +215,49 @@ function caculateBezierMidPos(tempSourcePos, tempTargetPos, height = 100) {
             y: minY + yLen
         }
     }
+}
+
+//二阶贝塞尔曲线---大神算法
+function CacQuadraticCurveMidPos(tempSourcePos, tempTargetPos, h = 100) {
+    let x2 = (tempSourcePos.x - tempTargetPos.x) * (tempSourcePos.x - tempTargetPos.x);
+    let y2 = (tempSourcePos.y - tempTargetPos.y) * (tempSourcePos.y - tempTargetPos.y);
+    let sqrt = Math.sqrt(x2 + y2);
+    let resX = (tempSourcePos.y - tempTargetPos.y) * (2 - h) / sqrt;
+    let resY = (tempSourcePos.x - tempTargetPos.x) * (2 - h) / sqrt;
+    return {
+        x: resX,
+        y: resY
+    };
+}
+
+//三阶贝塞尔曲线---引用库:arcTobezier
+function CacBezierCurveMidPos(tempSourcePos, tempTargetPos, height = 100) {
+    let dx = tempSourcePos.x - tempTargetPos.x,
+        dy = tempSourcePos.y - tempTargetPos.y,
+        dr = Math.sqrt(dx * dx + dy * dy);
+
+    const curve = {
+        type: 'arc',
+        rx: dr,
+        ry: dr,
+        largeArcFlag: 0,
+        sweepFlag: 1,
+        xAxisRotation: 0,
+    }
+
+    const curves = arcToBezier({
+        px: tempSourcePos.x,
+        py: tempSourcePos.y,
+        cx: tempTargetPos.x,
+        cy: tempTargetPos.y,
+        rx: curve.rx,
+        ry: curve.ry,
+        xAxisRotation: curve.xAxisRotation,
+        largeArcFlag: curve.largeArcFlag,
+        sweepFlag: curve.sweepFlag,
+    });
+
+    return curves[0];
 }
 
 function setNode(graph, id) {
@@ -231,48 +316,8 @@ function setNode(graph, id) {
         let source = nodeList[data.source],//起点（node坐标）
             target = nodeList[data.target];//终点（node坐标）
 
-        let newSourcePos, newTargetPos;
-        //别着急画线啊，先画箭头和椭圆(Arrow first)
-        if (data.targetShape && data.curveStyle === "bezier") {
-            midPos = caculateBezierMidPos(source, target, 100);
-            newTargetPos = drawTargetShape(data.id, data.targetShape, midPos, target);
-        } else if (data.targetShape) {
-            newTargetPos = drawTargetShape(data.id, data.targetShape, source, target);
-        }
-        if (data.sourceShape && data.curveStyle === "bezier") {
-            midPos = caculateBezierMidPos(source, target, 100);
-            //test
-            drawCircle(midPos.x, midPos.y,5);
-            newSourcePos = drawSourceShape(data.id, data.sourceShape, source, midPos);
-        } else if (data.sourceShape) {
-            newSourcePos = drawSourceShape(data.id, data.sourceShape, source, target);
-        }
-        // let newSourcePos, newTargetPos;
-        // //别着急画线啊，先画箭头和椭圆(Arrow first)
-        // if (data.targetShape) {
-        //     //Todo => nodeWidth
-        //     newTargetPos = drawTargetShape(data.id, data.targetShape, source, target);
-        // }
-
-        // if (data.sourceShape) {
-        //     newSourcePos = drawSourceShape(data.id, data.sourceShape, source, target);
-        // }
-
-        let tempSourcePos = newSourcePos ? newSourcePos : source;
-        let tempTargetPos = newTargetPos ? newTargetPos : target;
-        
-        //Draw edge
-        let line = new Graphics();
-        line.lineStyle(4, 0xFFFFFF, 1);
-
-        line.moveTo(tempSourcePos.x, tempSourcePos.y);
-        //先直线版
-        if (!data.curveStyle) line.lineTo(tempTargetPos.x, tempTargetPos.y);
-        if (data.curveStyle === 'bezier') {
-            let midPos = caculateBezierMidPos(source, target, 100);
-
-            line.quadraticCurveTo(midPos.x, midPos.y, tempTargetPos.x, tempTargetPos.y);
-        }
+        //Redraw
+        drawArrowAndEdge(data, source, target);
 
         // //Save position change
         if (targetFlag) {
@@ -285,8 +330,6 @@ function setNode(graph, id) {
             nodeList[data.source].y = newPos.y;
         }
 
-        edgeList[data.id] = line;//保存边引用
-        edgeContainer.addChild(line);
     }
 
     graph.interactive = true;
@@ -301,32 +344,40 @@ function setNode(graph, id) {
     return graph;
 }
 
-function drawSourceShape(id, shape, sourcePos, targetPos) {
-    let nodeRadius = nodeWidth;
-    if (sourcePos.width) nodeRadius = sourcePos.width;
-    //贴一起了就别显示啦
-    if ((Math.abs(sourcePos.y - targetPos.y) < nodeRadius * 1.5) &&
-        (Math.abs(sourcePos.x - targetPos.x) < nodeRadius * 1.5)) {
-        nodeRadius = 0;
-    }
+//脑残画法
+function drawArrowShape(id, shape, sourcePos, targetPos, source, target, targetFlag) {
+
     switch (shape) {
         case 'circle':
-            let angle = Math.atan(Math.abs(sourcePos.y - targetPos.y) / Math.abs(sourcePos.x - targetPos.x))
-            let circleWidth = nodeRadius / 2;
+            let c_nodeRadius = nodeWidth;
+            if (!targetFlag && sourcePos.width) c_nodeRadius = sourcePos.width;
+            if (targetFlag && targetPos.width) c_nodeRadius = targetPos.width;
+
+            //边界判定 => 贴一起了就别显示啦
+            if ((Math.abs(source.y - target.y) < c_nodeRadius * 1.5) &&
+                (Math.abs(source.x - target.x) < c_nodeRadius * 1.5)) {
+                c_nodeRadius = 0;
+            }
+
+            let srcPos = targetFlag ? targetPos : sourcePos;
+            let tgtPos = targetFlag ? sourcePos : targetPos;
+
+            let c_angle = Math.atan(Math.abs(srcPos.y - tgtPos.y) / Math.abs(srcPos.x - tgtPos.x))
+            let circleWidth = c_nodeRadius / 2;
             //posX和posY就是circle的最终中心坐标
-            let posX = (nodeRadius + circleWidth) * Math.cos(angle),
-                posY = (nodeRadius + circleWidth) * Math.sin(angle);
+            let posX = (c_nodeRadius + circleWidth) * Math.cos(c_angle),
+                posY = (c_nodeRadius + circleWidth) * Math.sin(c_angle);
 
             //分类讨论target和source的相对左右位置
-            if (sourcePos.x > targetPos.x) {//source节点在右边
-                posX = sourcePos.x - posX;
+            if (srcPos.x > tgtPos.x) {//source节点在右边
+                posX = srcPos.x - posX;
             } else {
-                posX = sourcePos.x + posX;
+                posX = srcPos.x + posX;
             }
-            if (sourcePos.y > targetPos.y) {//source节点在上边
-                posY = sourcePos.y - posY;
+            if (srcPos.y > tgtPos.y) {//source节点在上边
+                posY = srcPos.y - posY;
             } else {
-                posY = sourcePos.y + posY;
+                posY = srcPos.y + posY;
             }
 
             //Draw circle
@@ -339,56 +390,54 @@ function drawSourceShape(id, shape, sourcePos, targetPos) {
             circle.x = posX;
             circle.y = posY;
 
-            if (!arrowList[id]) arrowList[id] = {};
-            //remove oldArrow first
-            if (arrowList[id].sourceArrow) arrowContainer.removeChild(arrowList[id].sourceArrow);
-            //save newArrow
-            arrowList[id].sourceArrow = circle;
-            arrowContainer.addChild(circle);
+            //updateArrow 
+            updateArrow(id, circle, targetFlag);
 
             return {
                 x: posX,
                 y: posY
             }
-    }
-}
 
-function drawTargetShape(id, shape, sourcePos, targetPos) {
-    let nodeRadius = nodeWidth;
-    if (targetPos.width) nodeRadius = targetPos.width;
-    //贴一起了就别显示啦
-    if ((Math.abs(sourcePos.y - targetPos.y) < nodeRadius * 1.5) &&
-        (Math.abs(sourcePos.x - targetPos.x) < nodeRadius * 1.5)) {
-        nodeRadius = 0;
-    }
-    switch (shape) {
         case 'triangle':
             //这个三角形默认按顶角为50°，两个底角为65°来算，两边长先按一半nodeWidth来算吧
             //先画出来再想抽象的事
+            let t_nodeRadius = nodeWidth;
+            if (!targetFlag && sourcePos.width) t_nodeRadius = sourcePos.width;
+            if (targetFlag && targetPos.width) t_nodeRadius = targetPos.width;
+
+            //边界判定 => 贴一起了就别显示啦
+            if ((Math.abs(source.y - target.y) < t_nodeRadius * 1.5) &&
+                (Math.abs(source.x - target.x) < t_nodeRadius * 1.5)) {
+                    t_nodeRadius = 0;
+            }
+
+            let t_srcPos = targetFlag ? sourcePos : targetPos;
+            let t_tgtPos = targetFlag ? targetPos : sourcePos;
+
             let topAngle = Math.PI / 180 * 50,//角度转弧度，注意Math的那些方法的单位是弧度
-                sideEdge = nodeRadius,//瞅着合适，先凑合
+                sideEdge = t_nodeRadius,//瞅着合适，先凑合
                 halfBottomEdge = Math.sin(topAngle / 2) * sideEdge,
                 centerEdge = Math.cos(topAngle / 2) * sideEdge;
             //angle是一样的，先按node中心算，arrow中心算之后再说，先todo(直线版看出不这个问题，曲线就崩了)
-            let angle = Math.atan(Math.abs(sourcePos.y - targetPos.y) / Math.abs(sourcePos.x - targetPos.x));
-            let beginPosX = nodeRadius * Math.cos(angle),
-                beginPosY = nodeRadius * Math.sin(angle),
+            let angle = Math.atan(Math.abs(t_srcPos.y - t_tgtPos.y) / Math.abs(t_srcPos.x - t_tgtPos.x));
+            let beginPosX = t_nodeRadius * Math.cos(angle),
+                beginPosY = t_nodeRadius * Math.sin(angle),
                 pos1X, pos1Y, pos2X, pos2Y,
-                centerX = (nodeRadius + centerEdge) * Math.cos(angle),
-                centerY = (nodeRadius + centerEdge) * Math.sin(angle);
+                centerX = (t_nodeRadius + centerEdge) * Math.cos(angle),
+                centerY = (t_nodeRadius + centerEdge) * Math.sin(angle);
 
             pos1X = pos2X = Math.sin(angle) * halfBottomEdge;
             pos1Y = pos2Y = Math.cos(angle) * halfBottomEdge;//简单的几何知识(手动抽搐😖)
 
             //还需要分类讨论target和source的左右位置的各种情况
             //1234代表target相对source所在象限
-            if (sourcePos.x > targetPos.x) {//source节点在右
-                if (sourcePos.y > targetPos.y) {//下 ----> 1
-                    beginPosX = targetPos.x + beginPosX;
-                    beginPosY = targetPos.y + beginPosY;
+            if (t_srcPos.x > t_tgtPos.x) {//source节点在右
+                if (t_srcPos.y > t_tgtPos.y) {//下 ----> 1
+                    beginPosX = t_tgtPos.x + beginPosX;
+                    beginPosY = t_tgtPos.y + beginPosY;
 
-                    centerX = targetPos.x + centerX;
-                    centerY = targetPos.y + centerY;
+                    centerX = t_tgtPos.x + centerX;
+                    centerY = t_tgtPos.y + centerY;
 
                     pos1X = centerX + pos1X;
                     pos1Y = centerY - pos1Y;//+ -
@@ -396,11 +445,11 @@ function drawTargetShape(id, shape, sourcePos, targetPos) {
                     pos2X = centerX - pos2X;
                     pos2Y = centerY + pos2Y;//- +
                 } else {//上 ----> 4
-                    beginPosX = targetPos.x + beginPosX;
-                    beginPosY = targetPos.y - beginPosY;
+                    beginPosX = t_tgtPos.x + beginPosX;
+                    beginPosY = t_tgtPos.y - beginPosY;
 
-                    centerX = targetPos.x + centerX;
-                    centerY = targetPos.y - centerY;
+                    centerX = t_tgtPos.x + centerX;
+                    centerY = t_tgtPos.y - centerY;
 
                     pos1X = centerX + pos1X;
                     pos1Y = centerY + pos1Y;//+ +
@@ -410,12 +459,12 @@ function drawTargetShape(id, shape, sourcePos, targetPos) {
                 }
 
             } else {//source节点在左
-                if (sourcePos.y > targetPos.y) {//下 ----> 2
-                    beginPosX = targetPos.x - beginPosX;
-                    beginPosY = targetPos.y + beginPosY;
+                if (t_srcPos.y > t_tgtPos.y) {//下 ----> 2
+                    beginPosX = t_tgtPos.x - beginPosX;
+                    beginPosY = t_tgtPos.y + beginPosY;
 
-                    centerX = targetPos.x - centerX;
-                    centerY = targetPos.y + centerY;
+                    centerX = t_tgtPos.x - centerX;
+                    centerY = t_tgtPos.y + centerY;
 
                     pos1X = centerX - pos1X;
                     pos1Y = centerY - pos1Y;//- -
@@ -423,11 +472,11 @@ function drawTargetShape(id, shape, sourcePos, targetPos) {
                     pos2X = centerX + pos2X;
                     pos2Y = centerY + pos2Y;//+ +
                 } else {//上 ----> 3
-                    beginPosX = targetPos.x - beginPosX;
-                    beginPosY = targetPos.y - beginPosY;
+                    beginPosX = t_tgtPos.x - beginPosX;
+                    beginPosY = t_tgtPos.y - beginPosY;
 
-                    centerX = targetPos.x - centerX;
-                    centerY = targetPos.y - centerY;
+                    centerX = t_tgtPos.x - centerX;
+                    centerY = t_tgtPos.y - centerY;
 
                     pos1X = centerX - pos1X;
                     pos1Y = centerY + pos1Y;//- +
@@ -447,18 +496,27 @@ function drawTargetShape(id, shape, sourcePos, targetPos) {
             triangle.lineTo(pos2X, pos2Y);
             triangle.endFill();
 
-            if (!arrowList[id]) arrowList[id] = {};
-            //remove oldArrow first
-            if (arrowList[id].targetArrow) arrowContainer.removeChild(arrowList[id].targetArrow);
-            //save newArrow
-            arrowList[id].targetArrow = triangle;
-            arrowContainer.addChild(triangle);
+            updateArrow(id, triangle, targetFlag);
 
             return {
                 x: centerX,
                 y: centerY
             }
     }
+}
+
+function updateArrow(id, shape, targetFlag) {
+    if (!arrowList[id]) arrowList[id] = {};
+    if (!targetFlag) {//Source arrow
+        if (arrowList[id].sourceArrow) arrowContainer.removeChild(arrowList[id].sourceArrow);
+        //save newArrow
+        arrowList[id].sourceArrow = shape;
+    } else {//Target arrow
+        if (arrowList[id].targetArrow) arrowContainer.removeChild(arrowList[id].targetArrow);
+        //save newArrow
+        arrowList[id].targetArrow = shape;
+    }
+    arrowContainer.addChild(shape);
 }
 
 // Scale/Zoom
