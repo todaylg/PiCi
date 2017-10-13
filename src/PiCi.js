@@ -1,5 +1,6 @@
 import * as PIXI from "pixi.js";
 import arcToBezier from 'svg-arc-to-cubic-bezier';
+import * as d3 from "d3-force";
 //Encapsulation pixi => export PiCi 
 
 //Aliases
@@ -36,6 +37,7 @@ let nodeList = {},//Save node
     arrowList = {},//Save arrow
     edgeInfoList = {};//Save edge info
 
+let circleList = {};
 let bezierList = {};//Deal with 2 bezierCurve
 let midPos;//Now is just for Bezier,TODO is for all(include straight use midPos to Calculate)
 
@@ -44,6 +46,7 @@ function PiCi(opts) {
     //Extrac nodes/edges information from opts
     let elements = opts.elements;
     let nodes = [];
+    let edges = [];
     if (!elements) elements = [];
     if (elements.length > 0) {//init Node
         for (let i = 0, l = elements.length; i < l; i++) {
@@ -65,23 +68,16 @@ function PiCi(opts) {
 
             if (!data.source && !data.target) {//Node
                 nodes.push(data);
+            }else{
+                edges.push(data);
+                //Save this edge's info
+                edgeInfoList[data.id] = data;
             }
         }
     }
-    initializeNodes(nodes);
-    for (let i = 0, l = elements.length; i < l; i++) {//init Edge
-        let data = elements[i].data,
-            id = data.id;
-        //Save this edge's info
-        edgeInfoList[data.id] = data;
-        if (data.source && data.target) {//Edge
-            //Get position info
-            let source = nodeList[data.source];
-            let target = nodeList[data.target];
 
-            drawArrowAndEdge(data, source, target);
-        }
-    }
+    initializeNodes(nodes,edges);
+    
     //层级顺序
     stage.addChild(edgeContainer);
     stage.addChild(arrowContainer);
@@ -90,6 +86,8 @@ function PiCi(opts) {
 }
 
 function drawArrowAndEdge(data, source, target) {
+    //Remove old edge (drawArrowShape会擦除旧arrow)
+    if(edgeList[data.id])edgeContainer.removeChild(edgeList[data.id]);
     //Draw Arrow
     let newSourcePos, newTargetPos;
     if (data.targetShape) {
@@ -167,50 +165,62 @@ function drawArrowAndEdge(data, source, target) {
     edgeContainer.addChild(line);
 }
 
-//Random random method
-function initializeNodes(nodes) {
-    let initialRadius = window.innerHeight/6;
-    console.log(initialRadius);
-    let initialAngle = Math.PI * (3 - Math.sqrt(5));
-    let center = {
-        x:window.innerWidth/2,
-        y:window.innerHeight/2
+//d3-force init
+function initializeNodes(nodes,edges) {
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    let simulation = d3.forceSimulation(nodes)
+    .alpha(.02)
+    .force("charge", d3.forceManyBody().strength(-34))
+    .force("collide",  d3.forceCollide(120) ) 
+    .force("center", d3.forceCenter(width / 2, height / 2));
+
+    let ticked = function(){
+        nodes.forEach(drawNode);
     }
 
-    for (let i = 0, n = nodes.length, node; i < n; i++) {
-        node = nodes[i], node.index = i;
-        if (isNaN(node.x) || isNaN(node.y)) {
-            var radius = initialRadius * Math.sqrt(i), angle = (Math.random()*30)* i * initialAngle;
-            node.x = radius * Math.cos(angle)+center.x;
-            node.y = radius * Math.sin(angle)+center.y;
-            console.log(angle);
-        }
-        //Add node to nodeList
+    let drawNode = function(node){
         nodeList[node.id] = node;
-
-        //Draw node
-        let circle = new Graphics();
-
-        if (node.color) {
-            circle.beginFill(node.color);
-        } else {
-            circle.beginFill(0x66CCFF);
+        if(!circleList[node.id]){//Node只有初次渲染的时候需要绘制
+            let circle = new Graphics();
+            if (node.color) {
+                circle.beginFill(node.color);
+            } else {
+                circle.beginFill(0x66CCFF);
+            }
+    
+            let width = nodeWidth;
+            if (node.width) width = node.width;
+            circle.drawCircle(0, 0, width);
+            circle.endFill();
+            circle = setNode(circle, node.id);
+    
+            //Move
+            circle.x = node.x;
+            circle.y = node.y;
+            circleList[node.id] = circle;
+            nodeContainer.addChild(circle);
+        }else{//只需要移动位置
+            circleList[node.id].x = node.x;
+            circleList[node.id].y = node.y;
         }
-
-        let width = nodeWidth;
-        if (node.width) width = node.width;
-        circle.drawCircle(0, 0, width);
-        circle.endFill();
-        circle = setNode(circle, node.id);
-
-        //Move the graph to its designated position
-        //Todo => Node坐标随机分布
-        circle.x = node.x;
-        circle.y = node.y;
-
-        nodeContainer.addChild(circle);
+        //Edge的更新有两个条件
+        //1.变动的节点通过边连接的另外一个节点是否已经完成了初始化被赋予了坐标
+        //2.变动的节点是有边相连接的
+        for (let i = 0, l = edges.length; i < l; i++) {
+            let data = edges[i],
+                id = data.id;
+            if(nodeList[data.source]&&nodeList[data.target]){//条件1
+                if (data.source===node.id || data.target===node.id) {//条件2
+                    //Get position info
+                    let source = nodeList[data.source];
+                    let target = nodeList[data.target];
+                    drawArrowAndEdge(data, source, target);
+                }
+            }
+        }
     }
-
+    simulation.on('tick', ticked);
 }
 
 
