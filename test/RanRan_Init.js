@@ -1,9 +1,7 @@
 import * as PIXI from "pixi.js";
 import arcToBezier from 'svg-arc-to-cubic-bezier';
-// import * as d3 from "d3-force";
-import Dracula from 'graphdracula';
-
 //Encapsulation pixi => export PiCi 
+
 //Aliases
 let Container = PIXI.Container,
     Application = PIXI.Application,
@@ -28,7 +26,7 @@ let renderer = new Application(window.innerWidth, window.innerHeight, {
 
 document.body.appendChild(renderer.view);
 
-const SCALE_MAX = 100, SCALE_MIN = 0.4;//For scale limmit
+const SCALE_MAX = 24, SCALE_MIN = 0.1;//For scale limmit
 let nodeWidth = 30;//defalut node radius
 let point = {};//Todo 这里以后指针的形状也可以自定义
 let movePosBegin = {};
@@ -38,7 +36,6 @@ let nodeList = {},//Save node
     arrowList = {},//Save arrow
     edgeInfoList = {};//Save edge info
 
-let circleList = {};
 let bezierList = {};//Deal with 2 bezierCurve
 let midPos;//Now is just for Bezier,TODO is for all(include straight use midPos to Calculate)
 
@@ -47,7 +44,6 @@ function PiCi(opts) {
     //Extrac nodes/edges information from opts
     let elements = opts.elements;
     let nodes = [];
-    let edges = [];
     if (!elements) elements = [];
     if (elements.length > 0) {//init Node
         for (let i = 0, l = elements.length; i < l; i++) {
@@ -68,17 +64,11 @@ function PiCi(opts) {
             }
 
             if (!data.source && !data.target) {//Node
-                nodeList[data.id] = data;
                 nodes.push(data);
-            } else {
-                edges.push(data);
-                //Save this edge's info
-                edgeInfoList[data.id] = data;
             }
         }
     }
-
-    initializeNodes(nodes, edges);
+    initializeNodes(nodes);
     for (let i = 0, l = elements.length; i < l; i++) {//init Edge
         let data = elements[i].data,
             id = data.id;
@@ -100,8 +90,6 @@ function PiCi(opts) {
 }
 
 function drawArrowAndEdge(data, source, target) {
-    //Remove old edge (drawArrowShape会擦除旧arrow)
-    if (edgeList[data.id]) edgeContainer.removeChild(edgeList[data.id]);
     //Draw Arrow
     let newSourcePos, newTargetPos;
     if (data.targetShape) {
@@ -109,10 +97,10 @@ function drawArrowAndEdge(data, source, target) {
             case "bezier":
                 //三阶贝塞尔曲线
                 let bMidPos = CacBezierCurveMidPos(source, target, 100);
-                if (bezierList[source + '+' + target]) {
-                    bezierList[source + '+' + target] = 1;//'source+target'
-                } else {
-                    bezierList[source + '+' + target]++;
+                if(bezierList[source+'+'+target]){
+                    bezierList[source+'+'+target] = 1;//'source+target'
+                }else{
+                    bezierList[source+'+'+target]++;
                 }
                 let pos2 = { x: bMidPos.x2, y: bMidPos.y2 }
                 //drawCircle(pos2.x, pos2.y, 5);
@@ -179,29 +167,27 @@ function drawArrowAndEdge(data, source, target) {
     edgeContainer.addChild(line);
 }
 
-//Dragular Layout
-function initializeNodes(nodes, edges) {
-    let g = new Dracula.Graph();
-    for (let i = 0, l = edges.length; i < l; i++) {
-        let data = edges[i], id = data.id;
-        g.addEdge(data.source, data.target);
+//Random random method
+function initializeNodes(nodes) {
+    let initialRadius = window.innerHeight/6;
+    console.log(initialRadius);
+    let initialAngle = Math.PI * (3 - Math.sqrt(5));
+    let center = {
+        x:window.innerWidth/2,
+        y:window.innerHeight/2
     }
-    var layouter = new Dracula.Layout.Spring(g);
-    layouter.layout();
 
-    var renderer = new Dracula.Renderer.Raphael('canvas', g, window.innerWidth-100, window.innerHeight);
+    for (let i = 0, n = nodes.length, node; i < n; i++) {
+        node = nodes[i], node.index = i;
+        if (isNaN(node.x) || isNaN(node.y)) {
+            var radius = initialRadius * Math.sqrt(i), angle = (Math.random()*30)* i * initialAngle;
+            node.x = radius * Math.cos(angle)+center.x;
+            node.y = radius * Math.sin(angle)+center.y;
+            console.log(angle);
+        }
+        //Add node to nodeList
+        nodeList[node.id] = node;
 
-    renderer.draw();//这里改动了Dragular的源码，记一下，这个draw方法不再进行渲染
-
-    //根据g生成的位置进行初始化
-    let nodesObj = g.nodes;
-    for (let node in nodesObj) {
-        let id = nodesObj[node].id;
-        nodeList[id].x = nodesObj[node].point[0];
-        nodeList[id].y = nodesObj[node].point[1];
-        
-        node = nodeList[id];
-        //位置信息就有了，和d3-force初始化不同,只需要画一遍即可
         //Draw node
         let circle = new Graphics();
 
@@ -224,7 +210,9 @@ function initializeNodes(nodes, edges) {
 
         nodeContainer.addChild(circle);
     }
+
 }
+
 
 //脑残算法
 function myStupiedCacQuadraticCurveMidPos(tempSourcePos, tempTargetPos, height = 100) {

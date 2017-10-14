@@ -28,7 +28,7 @@ let renderer = new Application(window.innerWidth, window.innerHeight, {
 
 document.body.appendChild(renderer.view);
 
-const SCALE_MAX = 100, SCALE_MIN = 0.4;//For scale limmit
+const SCALE_MAX = 24, SCALE_MIN = 0.1;//For scale limmit
 let nodeWidth = 30;//defalut node radius
 let point = {};//Todo 这里以后指针的形状也可以自定义
 let movePosBegin = {};

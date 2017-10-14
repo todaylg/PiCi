@@ -1,9 +1,8 @@
 import * as PIXI from "pixi.js";
 import arcToBezier from 'svg-arc-to-cubic-bezier';
-// import * as d3 from "d3-force";
-import Dracula from 'graphdracula';
-
+import * as d3 from "d3-force";
 //Encapsulation pixi => export PiCi 
+let Dracula = require('graphdracula');
 //Aliases
 let Container = PIXI.Container,
     Application = PIXI.Application,
@@ -28,7 +27,7 @@ let renderer = new Application(window.innerWidth, window.innerHeight, {
 
 document.body.appendChild(renderer.view);
 
-const SCALE_MAX = 100, SCALE_MIN = 0.4;//For scale limmit
+const SCALE_MAX = 24, SCALE_MIN = 0.1;//For scale limmit
 let nodeWidth = 30;//defalut node radius
 let point = {};//Todo 这里以后指针的形状也可以自定义
 let movePosBegin = {};
@@ -79,19 +78,7 @@ function PiCi(opts) {
     }
 
     initializeNodes(nodes, edges);
-    for (let i = 0, l = elements.length; i < l; i++) {//init Edge
-        let data = elements[i].data,
-            id = data.id;
-        //Save this edge's info
-        edgeInfoList[data.id] = data;
-        if (data.source && data.target) {//Edge
-            //Get position info
-            let source = nodeList[data.source];
-            let target = nodeList[data.target];
 
-            drawArrowAndEdge(data, source, target);
-        }
-    }
     //层级顺序
     stage.addChild(edgeContainer);
     stage.addChild(arrowContainer);
@@ -189,42 +176,86 @@ function initializeNodes(nodes, edges) {
     var layouter = new Dracula.Layout.Spring(g);
     layouter.layout();
 
-    var renderer = new Dracula.Renderer.Raphael('canvas', g, window.innerWidth-100, window.innerHeight);
+    var renderer = new Dracula.Renderer.Raphael('#layout', g, window.innerWidth, window.innerHeight);
 
     renderer.draw();//这里改动了Dragular的源码，记一下，这个draw方法不再进行渲染
 
     //根据g生成的位置进行初始化
     let nodesObj = g.nodes;
-    for (let node in nodesObj) {
-        let id = nodesObj[node].id;
-        nodeList[id].x = nodesObj[node].point[0];
-        nodeList[id].y = nodesObj[node].point[1];
-        
-        node = nodeList[id];
+    for(let node in nodesObj){
+        let newNode = nodesObj[node];
+        nodeList[newNode.id].x = newNode.point[0];
+        nodeList[newNode.id].y = newNode.point[1];
         //位置信息就有了，和d3-force初始化不同,只需要画一遍即可
-        //Draw node
-        let circle = new Graphics();
-
-        if (node.color) {
-            circle.beginFill(node.color);
-        } else {
-            circle.beginFill(0x66CCFF);
-        }
-
-        let width = nodeWidth;
-        if (node.width) width = node.width;
-        circle.drawCircle(0, 0, width);
-        circle.endFill();
-        circle = setNode(circle, node.id);
-
-        //Move the graph to its designated position
-        //Todo => Node坐标随机分布
-        circle.x = node.x;
-        circle.y = node.y;
-
-        nodeContainer.addChild(circle);
+        
     }
 }
+
+//d3-force init
+// function initializeNodes(nodes,edges) {
+//     let width = window.innerWidth;
+//     let height = window.innerHeight;
+//     let simulation = d3.forceSimulation(nodes)
+//     //.alpha(0.1)
+//     // .force("charge", d3.forceManyBody().strength(-34))
+//     // .force("collide",  d3.forceCollide(100) ) 
+//     // .force("center", d3.forceCenter(width / 2, height / 2));
+//     .force('center', d3.forceCenter(width/2, height/2))	
+//     //.force('collide', d3.forceCollide(110))
+//   	.force('attraction', d3.forceManyBody().strength(330).distanceMin(1000))
+//   	.force('repulsion', d3.forceManyBody().strength(-330).distanceMax(1000))
+//     //   .force("link", d3.forceLink().id(function(d) { return d.id; }))
+//     //   .force("link", d3.forceLink(edges).distance(20).strength(1))
+
+//     let ticked = function(){
+//         nodes.forEach(drawNode);
+//     }
+
+//     let drawNode = function(node){
+//         nodeList[node.id] = node;
+//         if(!circleList[node.id]){//Node只有初次渲染的时候需要绘制
+//             let circle = new Graphics();
+//             if (node.color) {
+//                 circle.beginFill(node.color);
+//             } else {
+//                 circle.beginFill(0x66CCFF);
+//             }
+
+//             let width = nodeWidth;
+//             if (node.width) width = node.width;
+//             circle.drawCircle(0, 0, width);
+//             circle.endFill();
+//             circle = setNode(circle, node.id);
+
+//             //Move
+//             circle.x = node.x;
+//             circle.y = node.y;
+//             circleList[node.id] = circle;
+//             nodeContainer.addChild(circle);
+//         }else{//只需要移动位置
+//             circleList[node.id].x = node.x;
+//             circleList[node.id].y = node.y;
+//         }
+//         //Edge的更新有两个条件
+//         //1.变动的节点通过边连接的另外一个节点是否已经完成了初始化被赋予了坐标
+//         //2.变动的节点是有边相连接的
+//         for (let i = 0, l = edges.length; i < l; i++) {
+//             let data = edges[i],
+//                 id = data.id;
+//             if(nodeList[data.source]&&nodeList[data.target]){//条件1
+//                 if (data.source===node.id || data.target===node.id) {//条件2
+//                     //Get position info
+//                     let source = nodeList[data.source];
+//                     let target = nodeList[data.target];
+//                     drawArrowAndEdge(data, source, target);
+//                 }
+//             }
+//         }
+//     }
+//     simulation.on('tick', ticked);
+
+// }
+
 
 //脑残算法
 function myStupiedCacQuadraticCurveMidPos(tempSourcePos, tempTargetPos, height = 100) {

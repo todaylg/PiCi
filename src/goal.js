@@ -1,92 +1,47 @@
 import PiCi from './PiCi.js';
 //Result/Goal
+function autoGenera(nodeNum,edgeNum){//先node再edge
+    let res = [];
+    for(let i=0;i<nodeNum;i++){
+        let temp = {};
+        let data = temp.data = {};
+        //Ascii => A => 65
+        data.id = String.fromCharCode(65+i);
+        data.width = (Math.random()*30)+20;
+        if(i%2===0)data.color="0x000000";
+        res.push(temp);
+    }
+    for(let i=0;i<edgeNum;i++){
+        let randomNode1 = Math.floor(Math.random()*nodeNum);
+        let randomNode2 = Math.floor(Math.random()*nodeNum);
+        //toFix => Node can arrow itself
+        if(randomNode1 === randomNode2){
+            if(randomNode1===1){
+                randomNode1++;
+            }else{
+                randomNode2++;
+            }
+        };
+        let temp = {};
+        let data = temp.data = {};
+        data.id = String.fromCharCode(65+nodeNum+i);
+        data.source = res[randomNode1].data.id;
+        data.target = res[randomNode2].data.id;
+        if(i%2==0)data.curveStyle = 'bezier'
+        if(i%2==0){
+            data.targetShape='triangle';
+            data.sourceShape='circle';
+        }else{
+            data.targetShape='circle';
+            data.sourceShape='triangle';
+        }
+        res.push(temp);
+    }
+    return res;
+}
+
 PiCi({
     container: document.getElementById('cy'),
-    elements: [//先node再edge
-        { data: { id: 'a', width:40,color:"0x000000"} },
-        { data: { id: 'b'} },
-        { data: { id: 'c',width:60,color:"0x000000"} },
-        { data: { id: 'd'} },
-        { data: { id: 'e', width:80,color:"0x000000"} },
-        { data: { id: 'f'} },
-        {
-            data: {
-                id: 'ab',
-                source: 'a',
-                target: 'b',
-                curveStyle: 'bezier',
-                targetShape: 'triangle',
-                sourceShape: 'circle',
-            }
-        },
-        {
-            data: {
-                id: 'abc',
-                source: 'a',
-                target: 'b',
-                targetShape: 'triangle',
-                sourceShape: 'circle',
-            }
-        },
-        {
-            data: {
-                id: 'cd',
-                source: 'c',
-                target: 'd',
-                curveStyle: 'bezier',
-                targetShape: 'triangle',
-                sourceShape: 'circle',
-            }
-        },
-        {
-            data: {
-                id: 'bc',
-                source: 'b',
-                target: 'c',
-                targetShape: 'triangle',
-                sourceShape: 'circle',
-            }
-        },
-        {
-            data: {
-                id: 'ad',
-                source: 'a',
-                target: 'd',
-                curveStyle: 'bezier',
-                targetShape: 'triangle',
-                sourceShape: 'circle',
-            }
-        },
-        {
-            data: {
-                id: 'bf',
-                source: 'b',
-                target: 'f',
-                curveStyle: 'bezier',
-                targetShape: 'triangle',
-                sourceShape: 'circle',
-            }
-        },
-        {
-            data: {
-                id: 'be',
-                source: 'b',
-                target: 'e',
-                curveStyle: 'bezier',
-                targetShape: 'triangle',
-                sourceShape: 'circle',
-            }
-        },
-        {
-            data: {
-                id: 'af',
-                source: 'a',
-                target: 'f',
-                curveStyle: 'bezier',
-                targetShape: 'triangle',
-                sourceShape: 'circle',
-            }
-        },
-    ],
+    elements: autoGenera(30,20)
     
 })
