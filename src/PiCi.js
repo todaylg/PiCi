@@ -3,11 +3,15 @@ import arcToBezier from 'svg-arc-to-cubic-bezier';
 // import * as d3 from "d3-force";
 import Dracula from 'graphdracula';
 
-//Encapsulation pixi => export PiCi 
+//Use Sprite repalce Graph
+
+//Encapsulation PiXi => export PiCi 
 //Aliases
 let Container = PIXI.Container,
     Application = PIXI.Application,
     Sprite = PIXI.Sprite,
+    Text = PIXI.Text,
+    Filters = PIXI.filters,
     Graphics = PIXI.Graphics;
 
 let renderer = new Application(window.innerWidth, window.innerHeight, {
@@ -19,6 +23,7 @@ let renderer = new Application(window.innerWidth, window.innerHeight, {
     edgeContainer = new Container(),
     arrowContainer = new Container(),
     nodeContainer = new Container(),//Node above edge
+    textContainer = new Container(),//Text above node
     dragContainer = new Container();//Hightest level
 
 //Canvas(defalut is Webgl) Use for Render test
@@ -28,7 +33,7 @@ let renderer = new Application(window.innerWidth, window.innerHeight, {
 
 document.body.appendChild(renderer.view);
 
-const SCALE_MAX = 100, SCALE_MIN = 0.4;//For scale limmit
+const SCALE_MAX = 10, SCALE_MIN = 0.4;//For scale limmit
 let nodeWidth = 30;//defalut node radius
 let point = {};//Todo 这里以后指针的形状也可以自定义
 let movePosBegin = {};
@@ -36,6 +41,7 @@ let movePosBegin = {};
 let nodeList = {},//Save node
     edgeList = {},//Cache edge
     arrowList = {},//Save arrow
+    textList = {},//Save text
     edgeInfoList = {};//Save edge info
 
 let circleList = {};
@@ -79,6 +85,7 @@ function PiCi(opts) {
     }
 
     initializeNodes(nodes, edges);
+
     for (let i = 0, l = elements.length; i < l; i++) {//init Edge
         let data = elements[i].data,
             id = data.id;
@@ -96,6 +103,7 @@ function PiCi(opts) {
     stage.addChild(edgeContainer);
     stage.addChild(arrowContainer);
     stage.addChild(nodeContainer);
+    stage.addChild(textContainer);
     stage.addChild(dragContainer);
 }
 
@@ -189,7 +197,7 @@ function initializeNodes(nodes, edges) {
     var layouter = new Dracula.Layout.Spring(g);
     layouter.layout();
 
-    var renderer = new Dracula.Renderer.Raphael('canvas', g, window.innerWidth-100, window.innerHeight);
+    var renderer = new Dracula.Renderer.Raphael('canvas', g, window.innerWidth - 100, window.innerHeight);
 
     renderer.draw();//这里改动了Dragular的源码，记一下，这个draw方法不再进行渲染
 
@@ -199,22 +207,27 @@ function initializeNodes(nodes, edges) {
         let id = nodesObj[node].id;
         nodeList[id].x = nodesObj[node].point[0];
         nodeList[id].y = nodesObj[node].point[1];
-        
+
         node = nodeList[id];
         //位置信息就有了，和d3-force初始化不同,只需要画一遍即可
         //Draw node
-        let circle = new Graphics();
-
-        if (node.color) {
-            circle.beginFill(node.color);
-        } else {
-            circle.beginFill(0x66CCFF);
-        }
-
         let width = nodeWidth;
         if (node.width) width = node.width;
-        circle.drawCircle(0, 0, width);
-        circle.endFill();
+        let scale = width / 600;
+        let circle = generateSprite(node.shape, scale);//600=>todo=>param
+
+        //change to tint
+        if (node.color) {
+            circle.tint = node.color;
+        } else {
+            circle.tint = 0x000000;
+        }
+
+        //Draw NodeText
+        let textOpts;
+        if(node.textOpts)textOpts = node.textOpts
+        if(node.text) drawText(node.text,textOpts,node.id,node.x,node.y);
+
         circle = setNode(circle, node.id);
 
         //Move the graph to its designated position
@@ -225,82 +238,24 @@ function initializeNodes(nodes, edges) {
         nodeContainer.addChild(circle);
     }
 }
-
-//脑残算法
-function myStupiedCacQuadraticCurveMidPos(tempSourcePos, tempTargetPos, height = 100) {
-    let disX = Math.abs(tempTargetPos.x - tempSourcePos.x), disY = Math.abs(tempTargetPos.y - tempSourcePos.y);
-    let angle = Math.atan(disY / disX);
-    let halfLen = Math.sqrt(disX * disX + disY * disY) / 2;
-    let angle1 = Math.atan(height / halfLen);
-    let angleTotal = angle + angle1;
-    if (angleTotal - Math.PI / 2 > 0) {//两角相加为一个钝角了
-        let angleBeats = Math.PI - (angle + angle1);
-        let edge = 100 / Math.sin(angle1);
-        let xLen = edge * Math.cos(angleBeats);
-        let yLen = edge * Math.sin(angleBeats);
-        let minX = tempSourcePos.x - tempTargetPos.x >= 0 ? tempTargetPos.x : tempSourcePos.x;
-        let minY = tempSourcePos.y - tempTargetPos.y >= 0 ? tempSourcePos.y : tempTargetPos.y;
-        return {
-            x: minX - xLen,
-            y: minY - yLen
-        }
-    } else {//两角相加为一个锐角了
-        let edgeLen = height / Math.sin(angle1);
-        let xLen = edgeLen * Math.sin(angleTotal);
-        let yLen = edgeLen * Math.cos(angleTotal);
-        let maxX = tempSourcePos.x - tempTargetPos.x >= 0 ? tempSourcePos.x : tempTargetPos.x;
-        let minY = tempSourcePos.y - tempTargetPos.y >= 0 ? tempSourcePos.y : tempTargetPos.y;
-        return {
-            x: maxX - xLen,
-            y: minY + yLen
-        }
-    }
+let offsetX,offsetY;
+function drawText(text, opts, id, x, y){
+    if(text===''||opts===undefined) return;
+    let newText = new PIXI.Text(text, opts);
+    if(!offsetX)offsetX = newText.width/2;//讲道理这里应该可以用缓存值吧
+    if(!offsetY)offsetY = newText.height/2;//但是node的半径是不是可以动态改变的呢？
+    newText.x = x-offsetX;
+    newText.y = y-offsetY;
+    textList[id] = newText;
+    textContainer.addChild(newText);
 }
 
-//二阶贝塞尔曲线---大神算法
-function CacQuadraticCurveMidPos(tempSourcePos, tempTargetPos, h = 100) {
-    let x2 = (tempSourcePos.x - tempTargetPos.x) * (tempSourcePos.x - tempTargetPos.x);
-    let y2 = (tempSourcePos.y - tempTargetPos.y) * (tempSourcePos.y - tempTargetPos.y);
-    let sqrt = Math.sqrt(x2 + y2);
-    let resX = (tempSourcePos.y - tempTargetPos.y) * (2 - h) / sqrt;
-    let resY = (tempSourcePos.x - tempTargetPos.x) * (2 - h) / sqrt;
-    return {
-        x: resX,
-        y: resY
-    };
+function updateText(id, newPos){
+    textList[id].x = newPos.x-offsetX;
+    textList[id].y = newPos.y-offsetY;
 }
 
-//三阶贝塞尔曲线---引用库:arcTobezier
-function CacBezierCurveMidPos(tempSourcePos, tempTargetPos, height = 100) {
-    let dx = tempSourcePos.x - tempTargetPos.x,
-        dy = tempSourcePos.y - tempTargetPos.y,
-        dr = Math.sqrt(dx * dx + dy * dy);
-
-    const curve = {
-        type: 'arc',
-        rx: dr,
-        ry: dr,
-        largeArcFlag: 0,
-        sweepFlag: 1,
-        xAxisRotation: 0,
-    }
-
-    const curves = arcToBezier({
-        px: tempSourcePos.x,
-        py: tempSourcePos.y,
-        cx: tempTargetPos.x,
-        cy: tempTargetPos.y,
-        rx: curve.rx,
-        ry: curve.ry,
-        xAxisRotation: curve.xAxisRotation,
-        largeArcFlag: curve.largeArcFlag,
-        sweepFlag: curve.sweepFlag,
-    });
-
-    return curves[0];
-}
-
-function setNode(graph, id) {
+function setNode(sprite, id) {
 
     let onDragStart = function (event) {
         // store a reference to the data
@@ -317,7 +272,9 @@ function setNode(graph, id) {
         this.data = null;
         //归位
         dragContainer.removeChild(this);
+        dragContainer.removeChild(textList[id]);
         nodeContainer.addChild(this);
+        textContainer.addChild(textList[id]);
     }
 
     let onDragMove = function () {
@@ -326,8 +283,11 @@ function setNode(graph, id) {
             this.x = newPosition.x;
             this.y = newPosition.y;
             updateEdge(id, newPosition);//闭包的缘故，id是能访问得到的
+            updateText(id, newPosition);
+            textContainer.removeChild(textList[id]);
             nodeContainer.removeChild(this);
             dragContainer.addChild(this);
+            dragContainer.addChild(textList[id]);
         }
     }
 
@@ -372,16 +332,13 @@ function setNode(graph, id) {
 
     }
 
-    graph.interactive = true;
-    // this button mode will mean the hand cursor appears when you roll over the bunny with your mouse
-    graph.buttonMode = true;
-    graph
+    sprite
         .on('pointerdown', onDragStart)
         .on('pointerup', onDragEnd)
         .on('pointerupoutside', onDragEnd)
         .on('pointermove', onDragMove);
 
-    return graph;
+    return sprite;
 }
 
 //脑残画法
@@ -559,6 +516,29 @@ function updateArrow(id, shape, targetFlag) {
     arrowContainer.addChild(shape);
 }
 
+function generateSprite(shape, scale = 0.2) {
+    let sprite;
+
+    switch (shape) {
+        default:
+            sprite = Sprite.fromImage('../assets/Circle_White.png');
+            break;
+    }
+    sprite.anchor.set(0.5);
+    sprite.scale.set(scale*2);//>>??????莫名其妙和graph差两倍
+    sprite.filters = [new Filters.BlurFilter(1)];//效果拔群！！
+
+    // Opt-in to interactivity
+    sprite.interactive = true;
+
+    // Shows hand cursor
+    sprite.buttonMode = true;
+    
+    return sprite;
+
+}
+
+
 // Scale/Zoom
 renderer.view.addEventListener('wheel', function (e) {
     if (e.deltaY < 0) {
@@ -662,6 +642,36 @@ function toLocalPos(x, y) {
     let mouse = new PIXI.Point(x, y);
     let localPos = stage.toLocal(mouse);
     return localPos;
+}
+
+//三阶贝塞尔曲线---引用库:arcTobezier
+function CacBezierCurveMidPos(tempSourcePos, tempTargetPos, height = 100) {
+    let dx = tempSourcePos.x - tempTargetPos.x,
+        dy = tempSourcePos.y - tempTargetPos.y,
+        dr = Math.sqrt(dx * dx + dy * dy);
+
+    const curve = {
+        type: 'arc',
+        rx: dr,
+        ry: dr,
+        largeArcFlag: 0,
+        sweepFlag: 1,
+        xAxisRotation: 0,
+    }
+
+    const curves = arcToBezier({
+        px: tempSourcePos.x,
+        py: tempSourcePos.y,
+        cx: tempTargetPos.x,
+        cy: tempTargetPos.y,
+        rx: curve.rx,
+        ry: curve.ry,
+        xAxisRotation: curve.xAxisRotation,
+        largeArcFlag: curve.largeArcFlag,
+        sweepFlag: curve.sweepFlag,
+    });
+
+    return curves[0];
 }
 
 export default PiCi;

@@ -8,7 +8,20 @@ function autoGenera(nodeNum,edgeNum){//先node再edge
         //Ascii => A => 65
         data.id = String.fromCharCode(65+i);
         data.width = (Math.random()*30)+20;
-        if(i%2===0)data.color="0x000000";
+        data.text = "Text";
+        data.textOpts = {
+            fontFamily: 'Arial',
+            fontSize: 36,
+            fontStyle: 'italic',
+            fontWeight: 'bold',
+            fill: ['#ffffff', '#00ff99'], // gradient
+            stroke: '#4a1850',
+            strokeThickness: 5,
+            wordWrap: true,
+            wordWrapWidth: 440
+        };
+        //data.shape 默认为圆形
+        if(i%2===0)data.color=0x66CCFF;
         res.push(temp);
     }
     for(let i=0;i<edgeNum;i++){
@@ -17,7 +30,7 @@ function autoGenera(nodeNum,edgeNum){//先node再edge
         //toFix => Node can arrow itself
         if(randomNode1 === randomNode2){
             if(randomNode1===1){
-                randomNode1++;
+                randomNode1--;
             }else{
                 randomNode2++;
             }
@@ -42,6 +55,6 @@ function autoGenera(nodeNum,edgeNum){//先node再edge
 
 PiCi({
     container: document.getElementById('cy'),
-    elements: autoGenera(30,20)
+    elements: autoGenera(2,1)
     
 })
