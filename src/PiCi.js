@@ -246,6 +246,7 @@ function drawText(text, opts, id, x, y){
     if(!offsetY)offsetY = newText.height/2;//但是node的半径是不是可以动态改变的呢？
     newText.x = x-offsetX;
     newText.y = y-offsetY;
+    newText.scale.set(0.25,0.25);
     textList[id] = newText;
     textContainer.addChild(newText);
 }

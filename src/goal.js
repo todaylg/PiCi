@@ -11,7 +11,7 @@ function autoGenera(nodeNum,edgeNum){//先node再edge
         data.text = "Text";
         data.textOpts = {
             fontFamily: 'Arial',
-            fontSize: 36,
+            fontSize: 100,
             fontStyle: 'italic',
             fontWeight: 'bold',
             fill: ['#ffffff', '#00ff99'], // gradient
@@ -55,6 +55,6 @@ function autoGenera(nodeNum,edgeNum){//先node再edge
 
 PiCi({
     container: document.getElementById('cy'),
-    elements: autoGenera(2,1)
+    elements: autoGenera(6,4)
     
 })
