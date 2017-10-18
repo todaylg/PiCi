@@ -33,7 +33,7 @@ let renderer = new Application(window.innerWidth, window.innerHeight, {
 
 document.body.appendChild(renderer.view);
 
-const SCALE_MAX = 10, SCALE_MIN = 0.4;//For scale limmit
+const SCALE_MAX = 10, SCALE_MIN = 0.1;//For scale limmit
 let nodeWidth = 30;//defalut node radius
 let point = {};//Todo 这里以后指针的形状也可以自定义
 let movePosBegin = {};
@@ -552,7 +552,9 @@ renderer.view.addEventListener('wheel', function (e) {
 function zooming(zoomFlag, x, y) {
     //Current scale    
     let scale = stage.scale.x;
+    console.log(x);
     let point = toLocalPos(x, y);
+    console.log(point.x);
     //Zooming    
     if (zoomFlag) {
         if (scale < SCALE_MAX) {
@@ -567,6 +569,7 @@ function zooming(zoomFlag, x, y) {
             stage.position.set(stage.x - (point.x * -0.1), stage.y - (point.y * -0.1))
         }
     }
+    console.log(scale);
     stage.scale.set(scale, scale);
 }
 
